@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sendspin Web Player (Windows / Browser Client)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .player-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      width: 420px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+    h1 { font-size: 20px; color: #dfba53; margin: 0 0 16px; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #21262d;
+      color: #8b949e;
+      margin-bottom: 16px;
+    }
+    .status-badge.connected { background: #238636; color: #fff; }
+    .status-badge.sync { background: #1f6feb; color: #fff; }
+    .track-title { font-size: 18px; font-weight: bold; color: #fff; margin: 8px 0 4px; }
+    .track-artist { font-size: 14px; color: #8b949e; margin-bottom: 16px; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    input[type="text"] {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 14px;
+    }
+    button {
+      background: #dfba53;
+      color: #0d1117;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+    .btn-ctrl { background: #21262d; border: 1px solid #30363d; color: #fff; padding: 10px 18px; }
+  </style>
+</head>
+<body>
+  <div class="player-card">
+    <h1>Sendspin Universal Web Player</h1>
+    <div id="status" class="status-badge">Disconnected</div>
+
+    <div class="input-row">
+      <input type="text" id="serverUrl" placeholder="ws://192.168.1.x:8927/sendspin" value="ws://localhost:8927/sendspin">
+      <button id="connectBtn" onclick="toggleConnect()">Connect</button>
+    </div>
+
+    <div class="track-title" id="title">Sendspin Player</div>
+    <div class="track-artist" id="artist">Ready to stream on Windows</div>
+
+    <div class="controls">
+      <button class="btn-ctrl" onclick="sendCmd('previous')">⏮ Prev</button>
+      <button class="btn-ctrl" onclick="sendCmd('toggle')">⏯ Play/Pause</button>
+      <button class="btn-ctrl" onclick="sendCmd('next')">⏭ Next</button>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let audioCtx = null;
+    let isConnected = false;
+
+    function toggleConnect() {
+      if (isConnected) {
+        if (ws) ws.close();
+        return;
+      }
+
+      const url = document.getElementById('serverUrl').value.trim();
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+
+      document.getElementById('status').innerText = 'Connecting...';
+      document.getElementById('status').className = 'status-badge';
+
+      ws.onopen = () => {
+        isConnected = true;
+        document.getElementById('connectBtn').innerText = 'Disconnect';
+        document.getElementById('status').innerText = 'Connected';
+        document.getElementById('status').className = 'status-badge connected';
+
+        // Send client/hello
+        ws.send(JSON.stringify({
+          type: "client/hello",
+          payload: {
+            name: "Windows Web Player",
+            version: 1,
+            roles: ["player", "controller", "metadata"]
+          }
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'metadata') {
+            document.getElementById('title').innerText = msg.payload.title || 'Sendspin Player';
+            document.getElementById('artist').innerText = (msg.payload.artist || '') + (msg.payload.album ? ' — ' + msg.payload.album : '');
+          } else if (msg.type === 'server/time') {
+            document.getElementById('status').innerText = 'Synchronized (Live)';
+            document.getElementById('status').className = 'status-badge sync';
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        isConnected = false;
+        document.getElementById('connectBtn').innerText = 'Connect';
+        document.getElementById('status').innerText = 'Disconnected';
+        document.getElementById('status').className = 'status-badge';
+      };
+    }
+
+    function sendCmd(cmd) {
+      if (ws && isConnected) {
+        ws.send(JSON.stringify({
+          type: "controller/command",
+          payload: { command: cmd }
+        }));
+      }
+    }
+  </script>
+</body>
+</html>
