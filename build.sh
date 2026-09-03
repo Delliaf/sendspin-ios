@@ -100,7 +100,7 @@ echo "=== Creating Static Archive for Engine ==="
 
 echo "=== Linking Sendspin Binary ==="
 /opt/cctools/bin/arm-apple-darwin11-ld -dynamic -arch armv7 -ios_version_min 9.0 \
-    -flat_namespace -undefined suppress \
+    -twolevel_namespace -undefined dynamic_lookup \
     -F /tmp/stubs/Frameworks \
     -L /tmp/stubs/usr/lib \
     -o $BUILD_DIR/Payload/Sendspin.app/Sendspin \
