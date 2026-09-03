@@ -1,2 +1,17 @@
-
+Package: com.sendspin.player
+Name: Sendspin Player
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Sendspin Synchronized Multi-room Audio Player for iOS (Universal iOS 3.0 — 9.3+)
+Maintainer: Delliaf <34547169+Delliaf@users.noreply.github.com>
+Author: Delliaf
+Section: Multimedia
+Depends: firmware (>= 3.0)
+Filename: ./debs/com.sendspin.player_1.0.0_iphoneos-arm.deb
+Size: 511682
+MD5sum: 99aaa9d5221dc2609b36b250655794c3
+SHA1: 4260e5a2efc3bbac12593cdffde4aea479df4897
+SHA256: 4189e04fb604a628a25e0528a79a52fcdebc74e8f43a4cd361433ec1a86ef058
+Depiction: https://delliaf.github.io/sendspin-ios/depiction.html
+Icon: https://delliaf.github.io/sendspin-ios/CydiaIcon.png
 
