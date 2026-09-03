@@ -1,0 +1,137 @@
+// Copyright 2026 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// @file client_connection.h
+/// @brief Host build WebSocket client connection using IXWebSocket
+
+#pragma once
+
+#include "connection.h"
+#include <ixwebsocket/IXWebSocket.h>
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <string>
+
+namespace sendspin {
+
+/**
+ * @brief Outbound WebSocket connection to a Sendspin server (host build, IXWebSocket)
+ *
+ * Connects to a server URL, delivers incoming messages via the base class callbacks,
+ * and automatically reconnects after connection loss. Call loop() periodically to
+ * drive the reconnect timer.
+ *
+ * Usage:
+ * 1. Construct with the server WebSocket URL
+ * 2. Set the message and state callbacks on the base SendspinConnection
+ * 3. Call start() to open the connection
+ * 4. Call loop() from the client's periodic task
+ * 5. Call disconnect() to close the connection cleanly
+ *
+ * @code
+ * auto conn = std::make_unique<SendspinClientConnection>("ws://192.168.1.10:8928");
+ * conn->on_json_message_cb = [](SendspinConnection*, const char* data, size_t len, int64_t) {
+ * handle(data, len);
+ * }; conn->start();
+ * // periodically:
+ * conn->loop();
+ * @endcode
+ */
+class SendspinClientConnection : public SendspinConnection {
+public:
+    /// @brief Constructs a client connection to the given WebSocket URL
+    /// @param url WebSocket URL of the Sendspin server to connect to.
+    explicit SendspinClientConnection(std::string url);
+    /// @brief Stops the WebSocket connection and cleans up resources
+    ~SendspinClientConnection() override;
+
+    /// @brief Initiates the WebSocket connection to the server
+    void start() override;
+
+    /// @brief Drives periodic connection maintenance (reconnect timer, state machine)
+    void loop() override;
+
+    /// @brief Sends a goodbye message and closes the connection
+    /// @param reason Reason for disconnecting.
+    /// @param on_complete Callback invoked after the connection is closed.
+    void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete) override;
+
+    /// @brief Sends a text message to the server
+    /// @param message The message string to send.
+    /// @param cb Callback invoked after send completes.
+    /// @return SsErr::OK if queued successfully, error code otherwise.
+    SsErr send_text_message(const std::string& message, SendCompleteCallback cb,
+                            bool allow_before_hello) override;
+
+    /// @brief Sends a client/time message, capturing the timestamp synchronously before send
+    /// @return true if the message was sent successfully, false otherwise.
+    bool send_time_message() override;
+
+    /// @brief Enables or disables automatic reconnection after connection loss
+    /// @param enabled True to reconnect automatically, false to stay disconnected.
+    void set_auto_reconnect(bool enabled) {
+        this->auto_reconnect_ = enabled;
+    }
+
+    /// @brief No-op on host builds; task configuration is an ESP-IDF concept
+    void set_task_config(unsigned /*priority*/) {}
+
+    /// @brief Returns true if the WebSocket connection is currently open
+    /// @return true if connected, false otherwise.
+    bool is_connected() const override {
+        return this->connected_;
+    }
+
+protected:
+    /// @brief Registers the IXWebSocket message callback to handle open, close, data, and error
+    /// events
+    void setup_callbacks();
+
+    // ========================================
+    // Member variables
+    // ========================================
+
+    // Struct fields
+
+    /// @brief The WebSocket server URL
+    std::string url_;
+
+    // Pointer fields
+
+    /// @brief The IXWebSocket instance managing the connection
+    std::unique_ptr<ix::WebSocket> ws_;
+
+    // 32-bit fields
+
+    /// @brief Monotonic timestamp (ms) of the last reconnection attempt
+    uint32_t last_reconnect_attempt_{0};
+
+    static constexpr uint32_t DEFAULT_RECONNECT_INTERVAL_MS = 5000U;
+
+    /// @brief Delay in milliseconds between reconnection attempts
+    uint32_t reconnect_interval_ms_{DEFAULT_RECONNECT_INTERVAL_MS};
+
+    // 8-bit fields
+
+    /// @brief Whether to automatically reconnect after connection loss
+    bool auto_reconnect_{true};
+
+    /// @brief Whether the websocket is currently connected. Written by the IXWebSocket
+    /// callback thread, read cross-thread via is_connected(), hence atomic.
+    std::atomic<bool> connected_{false};
+};
+
+}  // namespace sendspin

@@ -1,0 +1,508 @@
+// Copyright 2026 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// @file client.h
+/// @brief Main public API for the Sendspin synchronized audio streaming client
+
+#pragma once
+
+#include "sendspin/config.h"
+#include "sendspin/types.h"
+
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace sendspin {
+
+// Forward declarations for enabled roles
+#ifdef SENDSPIN_ENABLE_ARTWORK
+class ArtworkRole;
+#endif
+#ifdef SENDSPIN_ENABLE_COLOR
+class ColorRole;
+#endif
+#ifdef SENDSPIN_ENABLE_CONTROLLER
+class ControllerRole;
+#endif
+#ifdef SENDSPIN_ENABLE_METADATA
+class MetadataRole;
+#endif
+#ifdef SENDSPIN_ENABLE_PLAYER
+class PlayerRole;
+#endif
+#ifdef SENDSPIN_ENABLE_VISUALIZER
+class VisualizerRole;
+#endif
+
+// Forward declarations for listener types
+struct GroupUpdateObject;
+
+/// @brief Listener for SendspinClient events
+/// All methods fire on the main loop thread
+class SendspinClientListener {
+public:
+    virtual ~SendspinClientListener() = default;
+
+    /// @brief Called when the group state is updated by the server
+    virtual void on_group_update(const GroupUpdateObject& /*group*/) {}
+
+    /// @brief Called after a time sync burst completes with the Kalman filter error
+    virtual void on_time_sync_updated(float /*error*/) {}
+
+    /// @brief Called when the library needs high-performance networking (e.g., disable WiFi
+    /// power saving)
+    virtual void on_request_high_performance() {}
+
+    /// @brief Called when the library no longer needs high-performance networking
+    virtual void on_release_high_performance() {}
+};
+
+/// @brief Platform hook for network readiness
+/// Must be set before start_server()
+class SendspinNetworkProvider {
+public:
+    virtual ~SendspinNetworkProvider() = default;
+
+    /// @brief Returns true if the network (WiFi/Ethernet) is ready for connections
+    virtual bool is_network_ready() = 0;
+};
+
+/// @brief Optional persistence provider for saving/loading client and role state
+/// All methods fire on the main loop thread
+class SendspinPersistenceProvider {
+public:
+    virtual ~SendspinPersistenceProvider() = default;
+
+    /// @brief Saves the FNV1 hash of the last server that was playing
+    /// @param hash FNV1 hash of the last played server ID
+    /// @return true on success, false on failure
+    virtual bool save_last_server_hash(uint32_t /*hash*/) {
+        return false;
+    }
+
+    /// @brief Loads the persisted last-played server hash
+    /// @return The saved hash, or nullopt if none saved
+    virtual std::optional<uint32_t> load_last_server_hash() {
+        return std::nullopt;
+    }
+
+    /// @brief Saves the player's static delay
+    /// @param delay_ms Static delay in milliseconds
+    /// @return true on success, false on failure
+    virtual bool save_static_delay(uint16_t /*delay_ms*/) {
+        return false;
+    }
+
+    /// @brief Loads the player's persisted static delay
+    /// @return The saved delay in milliseconds, or nullopt if none saved
+    virtual std::optional<uint16_t> load_static_delay() {
+        return std::nullopt;
+    }
+};
+
+/// @brief Log severity levels for host builds
+/// Has no effect on ESP-IDF builds
+enum class LogLevel : uint8_t {
+    NONE = 0,
+    ERROR = 1,
+    WARN = 2,
+    INFO = 3,
+    DEBUG = 4,
+    VERBOSE = 5,
+};
+
+// Forward declarations
+class ConnectionManager;
+class SendspinArenaAllocator;
+class SendspinConnection;
+class SendspinTimeBurst;
+
+/**
+ * @brief Main orchestration class for the sendspin-cpp library
+ *
+ * Manages WebSocket connections, message routing, NTP-style time synchronization,
+ * audio playback, and all Sendspin protocol interactions. Roles are added at runtime
+ * and each receives events via a listener interface. Only roles that are added will
+ * participate in the protocol.
+ *
+ * Usage:
+ * 1. Fill in a SendspinClientConfig with the device identity fields
+ * 2. Construct a SendspinClient with that config
+ * 3. Add roles via add_player(), add_controller(), add_metadata(), etc.
+ * 4. Set listeners on each role and set the network provider on the client
+ * 5. Call start_server() to start the WebSocket server and background tasks
+ * 6. Call loop() periodically from the platform main loop
+ *
+ * @code
+ * struct MyPlayerListener : PlayerRoleListener {
+ *     size_t on_audio_write(uint8_t* data, size_t len, uint32_t timeout_ms) override {
+ *         return audio_output.write(data, len, timeout_ms);
+ *     }
+ * };
+ *
+ * struct MyNetworkProvider : SendspinNetworkProvider {
+ *     bool is_network_ready() override { return true; }
+ * };
+ *
+ * MyPlayerListener player_listener;
+ * MyNetworkProvider network_provider;
+ *
+ * SendspinClientConfig config;
+ * config.client_id = "device-id";
+ * config.name = "My Device";
+ * config.product_name = "Speaker";
+ * config.manufacturer = "Acme";
+ * config.software_version = "1.0.0";
+ * SendspinClient client(config);
+ * auto& player = client.add_player(PlayerRoleConfig{});
+ * player.set_listener(&player_listener);
+ * client.add_controller();
+ * client.set_network_provider(&network_provider);
+ * client.start_server();
+ *
+ * while (true) {
+ *     client.loop();
+ * }
+ * @endcode
+ */
+class SendspinClient {
+    friend class ConnectionManager;
+
+public:
+    explicit SendspinClient(SendspinClientConfig config);
+    ~SendspinClient();
+
+    /// @brief Sets the library-wide log level (host builds only, no-op on ESP-IDF)
+    /// @param level The desired log level
+    static void set_log_level(LogLevel level);
+
+    /// @brief Returns the current log level (host builds only, INFO on ESP-IDF)
+    /// @return The current log level
+    static LogLevel get_log_level();
+
+    // ========================================
+    // Lifecycle
+    // ========================================
+
+    /// @brief Starts the WebSocket server and initializes the sync task (if audio is configured)
+    /// @return true on success, false on failure
+    bool start_server();
+
+    /// @brief Initiates a client connection to a Sendspin server at the given URL
+    ///
+    /// Must be called from the main loop thread: it tears down and replaces connection state
+    /// (time filter, dispatch, client state) directly rather than deferring to loop(), so calling
+    /// it concurrently with loop() would race those mutations.
+    /// @param url WebSocket server URL (e.g., "ws://server.local:8927/sendspin")
+    void connect_to(const std::string& url);
+
+    /// @brief Disconnects from the current server with the given reason
+    ///
+    /// Must be called from the main loop thread: the blocking transport close runs outside the
+    /// manager lock, so a call from another thread could race loop()'s own release of the same
+    /// connection (two concurrent transport stops).
+    /// @param reason The goodbye reason to send
+    void disconnect(SendspinGoodbyeReason reason);
+
+    /// @brief Processes events, drives time sync, checks network. Call from main loop
+    void loop();
+
+    // ========================================
+    // Role registration (call before start_server)
+    // ========================================
+
+#ifdef SENDSPIN_ENABLE_PLAYER
+    /// @brief Adds the player role. Returns a reference for setting callbacks
+    PlayerRole& add_player(PlayerRoleConfig config);
+#endif
+
+#ifdef SENDSPIN_ENABLE_COLOR
+    /// @brief Adds the color role. Returns a reference for setting callbacks
+    ColorRole& add_color();
+#endif
+
+#ifdef SENDSPIN_ENABLE_CONTROLLER
+    /// @brief Adds the controller role. Returns a reference for setting callbacks
+    ControllerRole& add_controller();
+#endif
+
+#ifdef SENDSPIN_ENABLE_METADATA
+    /// @brief Adds the metadata role. Returns a reference for setting callbacks
+    MetadataRole& add_metadata();
+#endif
+
+#ifdef SENDSPIN_ENABLE_ARTWORK
+    /// @brief Adds the artwork role. Returns a reference for setting callbacks
+    ArtworkRole& add_artwork(ArtworkRoleConfig config);
+#endif
+
+#ifdef SENDSPIN_ENABLE_VISUALIZER
+    /// @brief Adds the visualizer role. Returns a reference for setting callbacks
+    VisualizerRole& add_visualizer(VisualizerRoleConfig config);
+#endif
+
+    // ========================================
+    // Role access (nullptr if not added)
+    // ========================================
+
+#ifdef SENDSPIN_ENABLE_ARTWORK
+    /// @brief Returns the artwork role, or nullptr if not added
+    /// @return Pointer to the artwork role, or nullptr
+    ArtworkRole* artwork() {
+        return this->artwork_.get();
+    }
+    /// @brief Returns the artwork role (const), or nullptr if not added
+    /// @return Const pointer to the artwork role, or nullptr
+    const ArtworkRole* artwork() const {
+        return this->artwork_.get();
+    }
+#endif
+#ifdef SENDSPIN_ENABLE_COLOR
+    /// @brief Returns the color role, or nullptr if not added
+    /// @return Pointer to the color role, or nullptr
+    ColorRole* color() {
+        return this->color_.get();
+    }
+    /// @brief Returns the color role (const), or nullptr if not added
+    /// @return Const pointer to the color role, or nullptr
+    const ColorRole* color() const {
+        return this->color_.get();
+    }
+#endif
+#ifdef SENDSPIN_ENABLE_CONTROLLER
+    /// @brief Returns the controller role, or nullptr if not added
+    /// @return Pointer to the controller role, or nullptr
+    ControllerRole* controller() {
+        return this->controller_.get();
+    }
+    /// @brief Returns the controller role (const), or nullptr if not added
+    /// @return Const pointer to the controller role, or nullptr
+    const ControllerRole* controller() const {
+        return this->controller_.get();
+    }
+#endif
+#ifdef SENDSPIN_ENABLE_METADATA
+    /// @brief Returns the metadata role, or nullptr if not added
+    /// @return Pointer to the metadata role, or nullptr
+    MetadataRole* metadata() {
+        return this->metadata_.get();
+    }
+    /// @brief Returns the metadata role (const), or nullptr if not added
+    /// @return Const pointer to the metadata role, or nullptr
+    const MetadataRole* metadata() const {
+        return this->metadata_.get();
+    }
+#endif
+#ifdef SENDSPIN_ENABLE_PLAYER
+    /// @brief Returns the player role, or nullptr if not added
+    /// @return Pointer to the player role, or nullptr
+    PlayerRole* player() {
+        return this->player_.get();
+    }
+    /// @brief Returns the player role (const), or nullptr if not added
+    /// @return Const pointer to the player role, or nullptr
+    const PlayerRole* player() const {
+        return this->player_.get();
+    }
+#endif
+#ifdef SENDSPIN_ENABLE_VISUALIZER
+    /// @brief Returns the visualizer role, or nullptr if not added
+    /// @return Pointer to the visualizer role, or nullptr
+    VisualizerRole* visualizer() {
+        return this->visualizer_.get();
+    }
+    /// @brief Returns the visualizer role (const), or nullptr if not added
+    /// @return Const pointer to the visualizer role, or nullptr
+    const VisualizerRole* visualizer() const {
+        return this->visualizer_.get();
+    }
+#endif
+
+    // ========================================
+    // Queries
+    // ========================================
+
+    /// @brief Returns true if there is an active connection with completed handshake
+    /// @return true if connected with a completed handshake, false otherwise
+    bool is_connected() const;
+
+    /// @brief Returns the server information from the active connection's hello handshake
+    /// @return ServerInformationObject if connected with a completed handshake, nullopt otherwise
+    std::optional<ServerInformationObject> get_server_information() const;
+
+    /// @brief Returns true if the time filter has received at least one measurement
+    /// @return true if time synchronization has been established, false otherwise
+    bool is_time_synced() const;
+
+    /// @brief Converts a server timestamp to the equivalent client timestamp
+    /// @param server_time Server-side timestamp in microseconds
+    /// @return Equivalent client-side timestamp in microseconds
+    int64_t get_client_time(int64_t server_time) const;
+
+    /// @brief Returns the current group state
+    /// @return The current GroupUpdateObject (fields are optional and may be unset)
+    const GroupUpdateObject& get_group_state() const {
+        return this->group_state_;
+    }
+
+    // ========================================
+    // State updates
+    // ========================================
+
+    /// @brief Updates the client state (synchronized, error, external_source) and publishes
+    /// @param state The new client state to publish
+    void update_state(SendspinClientState state);
+
+    // ========================================
+    // Listener and provider setters
+    // ========================================
+
+    /// @brief Sets the listener for client events. The listener must outlive this client
+    void set_listener(SendspinClientListener* listener) {
+        this->listener_ = listener;
+    }
+
+    /// @brief Sets the network provider (required before start_server())
+    /// The provider must outlive this client
+    void set_network_provider(SendspinNetworkProvider* provider) {
+        this->network_provider_ = provider;
+    }
+
+    /// @brief Sets the optional persistence provider. The provider must outlive this client
+    void set_persistence_provider(SendspinPersistenceProvider* provider) {
+        this->persistence_provider_ = provider;
+    }
+
+    // ========================================
+    // Role services (called by roles via SendspinClient pointer)
+    // ========================================
+
+    /// @brief Publishes the current client state to the active connection
+    void publish_state();
+
+    /// @brief Sends a text message over the active connection
+    /// @param text The text message to send
+    void send_text(const std::string& text);
+
+    /// @brief Acquires a ref-counted high-performance networking request
+    void acquire_high_performance();
+
+    /// @brief Releases a ref-counted high-performance networking request
+    void release_high_performance();
+
+private:
+    /// @brief Cleans up playback state when the active streaming connection is removed
+    void cleanup_connection_state();
+
+    /// @brief Builds the formatted client hello message from config
+    std::string build_hello_message();
+
+    // ========================================
+    // Message processing
+    // ========================================
+
+    /// @brief Processes a JSON message from a connection
+    /// @param conn The connection that received the message
+    /// @param data Pointer to the raw JSON text (not null-terminated; valid for the duration of the
+    /// call only)
+    /// @param len Length of the JSON text in bytes
+    /// @param timestamp Receive timestamp in microseconds
+    void process_json_message(SendspinConnection* conn, const char* data, size_t len,
+                              int64_t timestamp);
+
+    /// @brief Processes a binary message from a connection
+    /// @param payload Pointer to the raw binary data
+    /// @param len Length of the binary data in bytes
+    void process_binary_message(const uint8_t* payload, size_t len);
+
+    // ========================================
+    // State publishing
+    // ========================================
+
+    /// @brief Publishes the current client state to the specified connection
+    /// @param conn The connection to publish to
+    void publish_client_state(SendspinConnection* conn);
+
+    // ========================================
+    // Persistence
+    // ========================================
+
+    /// @brief Loads the last played server hash from persistence
+    void load_last_played_server();
+
+    /// @brief Persists the server ID as the last played server (hashed)
+    void persist_last_played_server(const std::string& server_id);
+
+    // ========================================
+    // Connection event handlers (called by ConnectionManager via friend access)
+    // ========================================
+
+    /// @brief Publishes the initial client state after handshake completes
+    /// @param conn The connection that completed the handshake
+    void on_handshake_complete(SendspinConnection* conn);
+
+    struct EventState;
+
+    // Struct fields
+    SendspinClientConfig config_;
+    GroupUpdateObject group_state_{};
+
+    // Pointer fields
+#ifdef SENDSPIN_ENABLE_ARTWORK
+    std::unique_ptr<ArtworkRole> artwork_;
+#endif
+#ifdef SENDSPIN_ENABLE_COLOR
+    std::unique_ptr<ColorRole> color_;
+#endif
+    std::unique_ptr<ConnectionManager> connection_manager_;
+#ifdef SENDSPIN_ENABLE_CONTROLLER
+    std::unique_ptr<ControllerRole> controller_;
+#endif
+    std::unique_ptr<EventState> event_state_;
+    /// Internal-RAM scratch arena for parsing incoming JSON; null unless config_.json_arena_size >
+    /// 0
+    std::unique_ptr<SendspinArenaAllocator> json_arena_;
+    /// Serializes process_json_message() (and its use of json_arena_) across the network threads
+    /// of concurrently live connections (current + pending during a handoff).
+    std::mutex json_processing_mutex_;
+    SendspinClientListener* listener_{nullptr};
+#ifdef SENDSPIN_ENABLE_METADATA
+    std::unique_ptr<MetadataRole> metadata_;
+#endif
+    SendspinNetworkProvider* network_provider_{nullptr};
+    SendspinPersistenceProvider* persistence_provider_{nullptr};
+#ifdef SENDSPIN_ENABLE_PLAYER
+    std::unique_ptr<PlayerRole> player_;
+#endif
+    std::unique_ptr<SendspinTimeBurst> time_burst_;
+#ifdef SENDSPIN_ENABLE_VISUALIZER
+    std::unique_ptr<VisualizerRole> visualizer_;
+#endif
+
+    // 32-bit fields
+    SendspinClientState state_{SendspinClientState::SYNCHRONIZED};
+
+    // 8-bit fields
+    bool high_performance_held_for_time_{false};
+    std::atomic<uint8_t> high_performance_ref_count_{0};
+    bool started_{false};
+};
+
+}  // namespace sendspin

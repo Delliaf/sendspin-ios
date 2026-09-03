@@ -1,0 +1,146 @@
+// Copyright 2026 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// @file player_role_impl.h
+/// @brief Private implementation for the player role (pimpl)
+
+#pragma once
+
+#include "inbox.h"
+#include "sendspin/player_role.h"
+#include "sync_task.h"
+
+#include <atomic>
+#include <memory>
+#include <vector>
+
+namespace sendspin {
+
+class SendspinClient;
+class SendspinPersistenceProvider;
+struct ClientHelloMessage;
+struct ClientStateMessage;
+
+/// @brief Deferred stream lifecycle callback types queued from the network thread
+enum class PlayerStreamCallbackType : uint8_t {
+    STREAM_START,  // New stream is starting
+    STREAM_END,    // Stream ended normally
+};
+
+/// @brief Private implementation of the player role
+struct PlayerRole::Impl {
+    Impl(PlayerRoleConfig config, SendspinClient* client, SendspinPersistenceProvider* persistence);
+    ~Impl();
+
+    // ========================================
+    // Event state
+    // ========================================
+
+    struct EventState {
+        InboxSlot<ServerPlayerStreamObject> stream_params_slot;
+        InboxSlot<ServerCommandMessage> command_slot;
+        // Client state from the sync task. Latest-wins by design (the old ring events were
+        // collapsed to the newest at drain time anyway), and deliberately NOT on the event
+        // ring: the sync task is the one producer that can keep emitting while the main loop
+        // stalls, and un-coalesced state transitions must not be able to fill the shared ring
+        // and starve non-idempotent lifecycle events out of it.
+        InboxSlot<SendspinClientState> state_slot;
+    };
+
+    // ========================================
+    // Internal integration methods (called by SendspinClient)
+    // ========================================
+
+    void attach_inbox(Inbox& inbox);
+    bool start();
+    void build_hello_fields(ClientHelloMessage& msg);
+    void build_state_fields(ClientStateMessage& msg) const;
+    void handle_binary(const uint8_t* data, size_t len) const;
+    void handle_stream_start(const ServerPlayerStreamObject& player_obj) const;
+    void handle_stream_end() const;
+    void handle_stream_clear() const;
+    void handle_server_command(const ServerCommandMessage& cmd) const;
+    void on_stream_ring_event(PlayerStreamCallbackType event);
+    // True if this tick has drainable player work. The command-slot bit covers server
+    // volume/mute/static-delay commands; the state-slot bit covers client-state updates from
+    // the sync task; a non-empty awaiting_sync_idle_events is a main-thread-only flag set by
+    // on_stream_ring_event() above during this tick's ring dispatch, or carried over from a
+    // prior tick while a STREAM_END waits for the sync task to go idle. stream_params_slot's
+    // own topic bit (INBOX_TOPIC_PLAYER_STREAM_PARAMS) needs no separate term here: it is only
+    // ever consumed from the STREAM_START branch while that event sits in
+    // awaiting_sync_idle_events, which the awaiting_sync_idle_events term above already covers.
+    bool needs_drain(uint32_t pending_bits) const {
+        return (pending_bits & (INBOX_TOPIC_PLAYER_COMMAND | INBOX_TOPIC_PLAYER_STATE)) != 0 ||
+               !this->awaiting_sync_idle_events.empty();
+    }
+    void drain_events();
+    void cleanup();
+
+    // ========================================
+    // Consumer-facing method implementations
+    // ========================================
+
+    void update_volume(uint8_t volume);
+    void update_muted(bool muted);
+    void update_static_delay(uint16_t delay_ms);
+
+    // ========================================
+    // Helpers
+    // ========================================
+
+    bool send_audio_chunk(const uint8_t* data, size_t data_size, int64_t timestamp,
+                          uint8_t chunk_type, uint32_t timeout_ms) const;
+    void enqueue_state_update(SendspinClientState state) const;
+    void enqueue_stream_event(PlayerStreamCallbackType event) const;
+    void load_static_delay();
+    void persist_static_delay() const;
+    uint16_t get_effective_static_delay_ms() const;
+
+    // ========================================
+    // Fields
+    // ========================================
+
+    // Struct fields
+    PlayerRoleConfig config;
+    ServerPlayerStreamObject current_stream_params{};
+    std::vector<PlayerStreamCallbackType> awaiting_sync_idle_events;
+
+    // Pointer fields
+    SendspinClient* client;
+    std::unique_ptr<EventState> event_state;
+    Inbox* inbox{nullptr};
+    PlayerRoleListener* listener{nullptr};
+    SendspinPersistenceProvider* persistence;
+    std::unique_ptr<SyncTask> sync_task;
+
+    // 32-bit fields
+    // Bumped by cleanup() so a drain_events() listener callback that re-enters connection
+    // teardown is detected when control returns: the STREAM_START tail must not re-arm the
+    // sync task for a stream cleanup() just ended. Main-thread only.
+    uint32_t cleanup_generation{0};
+
+    // 16-bit fields
+    std::atomic<uint16_t> static_delay_ms{0};
+
+    // 8-bit fields
+    bool high_performance_requested_for_playback{false};
+    bool muted{false};
+    // True between the drained STREAM_START and STREAM_END callbacks (main-thread only); keeps
+    // on_stream_end() from firing without a matching on_stream_start()
+    bool stream_active{false};
+    std::atomic<bool> static_delay_adjustable{false};
+    uint8_t volume{0};
+};
+
+}  // namespace sendspin

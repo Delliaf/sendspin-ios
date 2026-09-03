@@ -1,0 +1,21 @@
+# Build Artifacts
+build/
+*.o
+*.a
+*.dylib
+*.log
+*.tmp
+/tmp/
+
+# Packages (build outputs are tracked in releases)
+Payload/
+*.ipa
+*.deb
+
+# OS & Editor specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~

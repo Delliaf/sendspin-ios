@@ -1,0 +1,171 @@
+// Copyright 2026 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// @file server_connection.h
+/// @brief ESP-IDF WebSocket server-side connection using esp_http_server
+
+#pragma once
+
+#include "connection.h"
+#include <esp_http_server.h>
+
+#include <atomic>
+#include <functional>
+
+namespace sendspin {
+
+/**
+ * @brief ESP-IDF HTTP server WebSocket connection representing a single Sendspin server session
+ *
+ * Implements the SendspinConnection interface for the server role, where the ESP device
+ * hosts an HTTP server and the Sendspin server connects to it as a WebSocket client.
+ *
+ * Manages:
+ * - The socket file descriptor for the accepted connection
+ * - Sending text messages (hello, state, time, goodbye, commands)
+ * - The httpd handle reference (owned by SendspinWsServer)
+ *
+ * Usage:
+ * 1. Created by SendspinWsServer when a new connection is accepted
+ * 2. start() is called to begin message processing
+ * 3. loop() is called periodically to handle time synchronization
+ * 4. disconnect() is called to gracefully close with goodbye message
+ *
+ * @code
+ * // Typical usage via SendspinWsServer (not constructed directly):
+ * SendspinWsServer ws_server;
+ * ws_server.start(port);
+ * // SendspinWsServer creates SendspinServerConnection instances internally
+ * // when incoming WebSocket connections are accepted.
+ * @endcode
+ */
+class SendspinServerConnection : public SendspinConnection {
+public:
+    /// @brief Constructs a server connection with the given httpd handle and socket
+    /// @param server The httpd handle (owned by the server listener).
+    /// @param sockfd The socket file descriptor for this connection.
+    SendspinServerConnection(httpd_handle_t server, int sockfd);
+
+    ~SendspinServerConnection() override = default;
+
+    // ========================================
+    // SendspinConnection interface implementation
+    // ========================================
+
+    /// @brief Starts the connection (initializes time filter, prepares for messages)
+    void start() override;
+
+    /// @brief Periodic loop processing (handles time message sending)
+    void loop() override;
+
+    /// @brief Gracefully disconnects by sending a goodbye message, then closing
+    ///
+    /// This is the high-level API for disconnection. It:
+    /// 1. Sends a goodbye message with the specified reason
+    /// 2. Calls trigger_close() after the message is sent (via async completion callback)
+    /// 3. Invokes on_complete callback (if provided) after goodbye send completes
+    ///
+    /// @param reason The reason for disconnecting (sent in goodbye message).
+    /// @param on_complete Optional callback invoked after goodbye send completes (or fails).
+    ///                    Invoked from httpd worker thread - use defer() if main loop context is
+    ///                    needed.
+    void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete) override;
+
+    /// @brief Checks if the socket connection is valid
+    /// @return true if connected, false otherwise.
+    bool is_connected() const override;
+
+    /// @brief Marks the connection closed after the httpd session ends
+    ///
+    /// Called from the ws server's close notification (httpd thread). Without this,
+    /// is_connected() stayed true until the manager dropped the connection on the main loop,
+    /// and a queued async send in that window could resolve the stale sockfd against a
+    /// recycled httpd session and write the frame to the wrong peer.
+    void mark_closed() {
+        this->closed_.store(true, std::memory_order_release);
+    }
+
+    /// @brief Sends a text message to the server with a completion callback
+    /// @param message The message string to send.
+    /// @param on_complete Callback invoked after send completes.
+    /// @return SsErr::OK if queued successfully, error code otherwise.
+    SsErr send_text_message(const std::string& message, SendCompleteCallback on_complete,
+                            bool allow_before_hello) override;
+
+    /// @brief Sends a client/time message, stamping the timestamp inside the httpd worker
+    ///
+    /// Schedules a worker job that captures `client_transmitted` and serializes the JSON
+    /// just before calling `httpd_ws_send_frame_async`, eliminating hub→worker queue latency
+    /// from the measured client timestamp.
+    /// @return true if the worker job was queued successfully, false otherwise.
+    bool send_time_message() override;
+
+    /// @brief Triggers the underlying socket to close
+    ///
+    /// This is a low-level method that directly triggers the httpd session to close.
+    /// It does NOT send a goodbye message first.
+    ///
+    /// Relationship with disconnect():
+    /// - disconnect() is the high-level API that sends a goodbye message, then calls
+    ///   trigger_close() in the completion callback after the message is sent.
+    /// - trigger_close() is the low-level mechanism that actually closes the socket.
+    ///
+    /// Use disconnect() for graceful shutdown. Use trigger_close() only when you
+    /// need to force-close without sending goodbye (e.g., after goodbye is already sent).
+    void trigger_close();
+
+    /// @brief Gets the socket file descriptor
+    /// @return The socket fd, or -1 if not connected.
+    int get_sockfd() const override {
+        return this->sockfd_;
+    }
+
+    /// @brief Handles incoming WebSocket data
+    /// @param req The httpd request containing the WebSocket frame.
+    /// @param receive_time Timestamp when the data was received.
+    /// @return ESP_OK on success, error code on failure.
+    esp_err_t handle_data(httpd_req_t* req, int64_t receive_time);
+
+protected:
+    /// @brief httpd_queue_work callback that sends a queued text frame over the WebSocket
+    /// @param arg Pointer to the AsyncRespArg context allocated by send_text_message().
+    static void async_send_text(void* arg);
+
+    /// @brief httpd_queue_work callback that builds and sends a client/time frame
+    ///
+    /// Captures the client_transmitted timestamp inside the worker (just before
+    /// `httpd_ws_send_frame_async`), serializes the JSON, then sends.
+    /// @param arg A heap-allocated `SessionLookup` holding a `weak_ptr` to the originating
+    ///            connection. The worker `lock()`s it: if the connection is still alive (and has
+    ///            sent its client/hello) it sends the frame, otherwise it no-ops. The arg is
+    ///            destroyed and freed before the worker returns.
+    static void async_send_time_text(void* arg);
+
+    // Pointer fields
+
+    /// @brief The httpd server handle (owned by SendspinWsServer)
+    httpd_handle_t server_;
+
+    // 32-bit fields
+
+    /// @brief The socket file descriptor for this connection
+    int sockfd_{-1};
+
+    // 8-bit fields
+
+    /// @brief Set once the httpd session has closed (see mark_closed())
+    std::atomic<bool> closed_{false};
+};
+
+}  // namespace sendspin

@@ -1,0 +1,55 @@
+name: CI & Build Release Packages
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang llvm-14 lld cmake zip dpkg-dev libssl-dev libplist-dev libcrypto++-dev autoconf automake libtool uuid-dev
+          pip install websockets
+
+      - name: Run C++ DSP & Lock-Free Ring Buffer Unit Tests
+        run: |
+          g++ -O3 -std=c++17 -pthread tests/test_lockfree_ring_buffer.cpp -o /tmp/test_ring_buffer
+          /tmp/test_ring_buffer
+          g++ -O3 -std=c++17 tests/test_audio_dsp_and_timing.cpp -o /tmp/test_audio_dsp
+          /tmp/test_audio_dsp
+          g++ -O3 -std=c++17 tests/test_mdns_discovery_logic.cpp -o /tmp/test_mdns_logic
+          /tmp/test_mdns_logic
+
+      - name: Run Real-time WebSocket Protocol Simulation
+        run: |
+          python3 tests/test_sendspin_full_simulation.py
+
+      - name: Run Master Automated Test Suite
+        run: |
+          python3 tests/run_all_tests.py
+
+      - name: Upload Artifacts (CI Output)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sendspin-ios-test-reports
+          path: |
+            README.md
+            LICENSE
+            THIRD_PARTY_NOTICES.md
+            docs/
