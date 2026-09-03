@@ -7,17 +7,17 @@ Architectures: iphoneos-arm iphoneos-arm64
 Components: main
 Description: Official Cydia repository for Sendspin iOS Player (iOS 3.0 — iOS 9.3+)
 MD5Sum:
- 2ba6aee994f53c47d7d438a0d89af6d8 675 main/binary-iphoneos-arm/Packages
- 5b1d12cca11cceff99b04c396b72760d 458 main/binary-iphoneos-arm/Packages.gz
- f9f52582db52f090187dfed5962f8914 509 main/binary-iphoneos-arm/Packages.bz2
- 5923ead2874903b07e796e9e44305193 516 main/binary-iphoneos-arm/Packages.xz
+ c43b1dd620865bcee718043cafb5eaa1 675 main/binary-iphoneos-arm/Packages
+ 4f7e0e40de259fb303cb9f33a83d41e9 459 main/binary-iphoneos-arm/Packages.gz
+ dab80fe5d522faed275defd3af68603a 505 main/binary-iphoneos-arm/Packages.bz2
+ 1400f72871203d2803a39be3ab469328 512 main/binary-iphoneos-arm/Packages.xz
 SHA1:
- 28d163c31606fc977a5d73d085c5cffbcc29e6bd 675 main/binary-iphoneos-arm/Packages
- b5676421946a31ad682c45d598ba552e30f1b298 458 main/binary-iphoneos-arm/Packages.gz
- b8bdfcbecf0cefb46c4c741ddea4fb06633270ad 509 main/binary-iphoneos-arm/Packages.bz2
- d7cd7170f2f3936542ce1339790bfe39d0418bd4 516 main/binary-iphoneos-arm/Packages.xz
+ 6a1e5e9f84e26d07408f5c06ec8ec8bc487a6d07 675 main/binary-iphoneos-arm/Packages
+ 5b1bea8c7f99b2b5c1bc8d775af27312de4eb27b 459 main/binary-iphoneos-arm/Packages.gz
+ 7b46c288890d737905ef329b88795a31e6c47af1 505 main/binary-iphoneos-arm/Packages.bz2
+ d142215e3328c409e9369a7edec9fd3ae84fa507 512 main/binary-iphoneos-arm/Packages.xz
 SHA256:
- a9bf514367024e5885271a281ed84346185227cece76c39bfca4773eafb49b2c 675 main/binary-iphoneos-arm/Packages
- 6e94a4441a983260bbd37a67a39307bfdbb6342ee1de1cae6261d55ad9f0ebd5 458 main/binary-iphoneos-arm/Packages.gz
- 849c0514a35369607969001b584896862a3e0895f9844c4fab46f4ba0a7dab49 509 main/binary-iphoneos-arm/Packages.bz2
- 94095bf48d056f62ab1683c56fb8ea71dac8d2fcb01581fc5ebbebd914bf6358 516 main/binary-iphoneos-arm/Packages.xz
+ a5654960ba367a93254808bb99defcbb6d7be898a47c3eead486aa08c565279e 675 main/binary-iphoneos-arm/Packages
+ e6dade361087953ba34d7d5376b41e52dc9b618bee145f8a6bfd8c1b49ef656a 459 main/binary-iphoneos-arm/Packages.gz
+ a80edc12bb1b839b91769bd05232098993532b3ed7c5531dfbfa0030a1198c8a 505 main/binary-iphoneos-arm/Packages.bz2
+ da816a8f9ce8eb663b9d777d0acecfb5b4f77642418c12e15456e921ba5b762e 512 main/binary-iphoneos-arm/Packages.xz
