@@ -1,0 +1,23 @@
+Origin: Delliaf's Cydia Repo
+Label: Sendspin iOS Repo
+Suite: stable
+Version: 1.0
+Codename: ios
+Architectures: iphoneos-arm
+Components: main
+Description: Official Cydia repository for Sendspin iOS Player (iOS 3.0 — iOS 9.3+)
+MD5Sum:
+ 68b329da9893e34099c7d8ad5cb9c940 1 Packages
+ fe65f46c5017ec9b39b5d7688f65900c 30 Packages.gz
+ 1a28c1c6c45d5a9390ab5bd1aa5a92eb 37 Packages.bz2
+ 627a8a6402e37e4f280d16b90d626532 60 Packages.xz
+SHA1:
+ adc83b19e793491b1c6ea0fd8b46cd9f32e592fc 1 Packages
+ 1cbdf7b626490c6ca307a8f9da0587b2c93d0281 30 Packages.gz
+ b8725aa6bb0cf2e614f14140da45ba1f24c1f44c 37 Packages.bz2
+ 637a294b27714267a7f4933961d03dcb26103fa6 60 Packages.xz
+SHA256:
+ 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b 1 Packages
+ d9802249ac98ef3ade8baca108402b2518ab9be3a52945b65b6b7ce6a683ebab 30 Packages.gz
+ 152979049e09b22da4d19cea4e677f2f170f4840a9046c214d8603d9fde62363 37 Packages.bz2
+ a585ae734bf2564404136fe8c06eef24a7dbd7bbc82ca808a9ab00af564483d9 60 Packages.xz
