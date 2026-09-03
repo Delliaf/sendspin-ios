@@ -223,24 +223,11 @@ cat << "POSTINST_EOF" > $BUILD_DIR/deb/DEBIAN/postinst
 #!/bin/sh
 set -e
 
-chown -R root:wheel /Applications/Sendspin.app 2>/dev/null || true
+chown -R root:admin /Applications/Sendspin.app 2>/dev/null || true
 chmod 755 /Applications/Sendspin.app
 chmod 755 /Applications/Sendspin.app/Sendspin
 
-# 1. Update SpringBoard / LaunchServices application cache
-if which uicache >/dev/null 2>&1; then
-    uicache -p /Applications/Sendspin.app 2>/dev/null || uicache 2>/dev/null || true
-elif [ -x /usr/bin/uicache ]; then
-    /usr/bin/uicache -p /Applications/Sendspin.app 2>/dev/null || /usr/bin/uicache 2>/dev/null || true
-fi
-
-# 2. Update as mobile user (owner of LaunchServices on iOS 8/9)
-if id -u mobile >/dev/null 2>&1; then
-    su mobile -c "uicache -p /Applications/Sendspin.app 2>/dev/null || uicache 2>/dev/null" 2>/dev/null || true
-fi
-
-# 3. Reload SpringBoard icon cache
-killall -HUP SpringBoard 2>/dev/null || true
+uicache -p /Applications/Sendspin.app 2>/dev/null || true
 
 exit 0
 POSTINST_EOF

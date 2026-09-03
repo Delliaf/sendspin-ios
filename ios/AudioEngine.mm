@@ -373,6 +373,7 @@ static OSStatus CoreAudioRenderCallback(
         AudioComponentInstanceDispose(_audioUnit);
         _audioUnit = NULL;
     }
+    _isRunning = false;
 
     _sampleRate = sampleRate;
     _channels = channels;

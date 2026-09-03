@@ -55,7 +55,9 @@ struct ResolveContext {
 
 class NativeMdnsBrowser {
 public:
-    NativeMdnsBrowser(SendspinBridge *bridge) : bridge_(bridge) {}
+    NativeMdnsBrowser(SendspinBridge *bridge) : bridge_(bridge) {
+        queue_ = dispatch_queue_create("com.sendspin.mdns.browser", DISPATCH_QUEUE_SERIAL);
+    }
 
     ~NativeMdnsBrowser() {
         stop();
@@ -71,7 +73,7 @@ public:
         DNSServiceErrorType err1 = DNSServiceBrowse(
             &browse_ref_sendspin_, 0, 0, "_sendspin._tcp", nullptr, browse_callback, this);
         if (err1 == kDNSServiceErr_NoError && browse_ref_sendspin_) {
-            DNSServiceSetDispatchQueue(browse_ref_sendspin_, dispatch_get_main_queue());
+            DNSServiceSetDispatchQueue(browse_ref_sendspin_, queue_);
         } else {
             NSLog(@"[NativeMdnsBrowser] Failed to browse _sendspin._tcp: %d", err1);
         }
@@ -79,21 +81,23 @@ public:
         DNSServiceErrorType err2 = DNSServiceBrowse(
             &browse_ref_ma_, 0, 0, "_music-assistant._tcp", nullptr, browse_callback, this);
         if (err2 == kDNSServiceErr_NoError && browse_ref_ma_) {
-            DNSServiceSetDispatchQueue(browse_ref_ma_, dispatch_get_main_queue());
+            DNSServiceSetDispatchQueue(browse_ref_ma_, queue_);
         } else {
             NSLog(@"[NativeMdnsBrowser] Failed to browse _music-assistant._tcp: %d", err2);
         }
 
-        NSLog(@"[NativeMdnsBrowser] DNS-SD browser active (DispatchQueue mode)");
+        NSLog(@"[NativeMdnsBrowser] DNS-SD browser active (Background Queue mode)");
         return true;
     }
 
     void stop() {
         if (browse_ref_sendspin_ != nullptr) {
+            DNSServiceSetDispatchQueue(browse_ref_sendspin_, NULL);
             DNSServiceRefDeallocate(browse_ref_sendspin_);
             browse_ref_sendspin_ = nullptr;
         }
         if (browse_ref_ma_ != nullptr) {
+            DNSServiceSetDispatchQueue(browse_ref_ma_, NULL);
             DNSServiceRefDeallocate(browse_ref_ma_);
             browse_ref_ma_ = nullptr;
         }
@@ -125,7 +129,7 @@ private:
             DNSServiceErrorType err = DNSServiceResolve(
                 &resolve_ref, 0, interface_index, name, regtype, domain, resolve_callback, ctx);
             if (err == kDNSServiceErr_NoError && resolve_ref) {
-                DNSServiceSetDispatchQueue(resolve_ref, dispatch_get_main_queue());
+                DNSServiceSetDispatchQueue(resolve_ref, browser->queue_);
             } else {
                 delete ctx;
             }
@@ -144,6 +148,7 @@ private:
         auto* ctx = static_cast<ResolveContext*>(context);
 
         if (error != kDNSServiceErr_NoError || !hosttarget) {
+            DNSServiceSetDispatchQueue(ref, NULL);
             DNSServiceRefDeallocate(ref);
             delete ctx;
             return;
@@ -157,6 +162,7 @@ private:
             ctx->path = std::string(static_cast<const char*>(path_val), path_len);
         }
 
+        DNSServiceSetDispatchQueue(ref, NULL);
         DNSServiceRefDeallocate(ref);
 
         std::thread([ctx, host = std::string(hosttarget)]() {
@@ -192,6 +198,7 @@ private:
     void notify_bridge();
 
     __weak SendspinBridge *bridge_{nil};
+    dispatch_queue_t queue_{nullptr};
     DNSServiceRef browse_ref_sendspin_{nullptr};
     DNSServiceRef browse_ref_ma_{nullptr};
 
