@@ -664,7 +664,9 @@
 
         UIAlertAction *rescanAction = [UIAlertAction actionWithTitle:@"🔄 Rescan Local Network" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [bridge rescanBonjourServers];
-            [self showServerDialog];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self showServerDialog];
+            });
         }];
         [alert addAction:rescanAction];
 

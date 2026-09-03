@@ -289,7 +289,7 @@ static OSStatus CoreAudioRenderCallback(
     status = AudioUnitSetProperty(
         _audioUnit,
         kAudioUnitProperty_SetRenderCallback,
-        kAudioUnitScope_Global,
+        kAudioUnitScope_Input,
         0,
         &callbackStruct,
         sizeof(callbackStruct));
