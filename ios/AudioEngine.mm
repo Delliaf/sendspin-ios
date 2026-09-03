@@ -112,10 +112,17 @@ static OSStatus CoreAudioRenderCallback(
     AudioBufferList *ioData)
 {
     AudioEngine *engine = (__bridge AudioEngine *)inRefCon;
-    if (!engine) return noErr;
+    if (!engine || !ioData || ioData->mNumberBuffers == 0) return noErr;
 
     int16_t *outBuffer = (int16_t *)ioData->mBuffers[0].mData;
+    if (!outBuffer) return noErr;
     size_t bytesNeeded = inNumberFrames * 2 * sizeof(int16_t);
+
+    static uint32_t s_renderCount = 0;
+    if ((++s_renderCount % 200) == 1) {
+        NSLog(@"[AudioEngine] RenderCallback firing: frames=%u, ringAvail=%zu, vol=%.2f, muted=%d",
+              (unsigned int)inNumberFrames, engine->_ringBuffer.available_read(), engine.volume, engine.isMuted);
+    }
 
     size_t bytesRead = engine->_ringBuffer.read((uint8_t *)outBuffer, bytesNeeded);
     if (bytesRead < bytesNeeded) {
@@ -379,6 +386,10 @@ static OSStatus CoreAudioRenderCallback(
 }
 
 - (size_t)writeAudioData:(const uint8_t *)data length:(size_t)length {
+    static uint32_t s_writeCount = 0;
+    if ((++s_writeCount % 200) == 1) {
+        NSLog(@"[AudioEngine] writeAudioData received %zu bytes (ringAvail=%zu)", length, _ringBuffer.available_read());
+    }
     if (!_isRunning.load()) {
         [self start];
     }

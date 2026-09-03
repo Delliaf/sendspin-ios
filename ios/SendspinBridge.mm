@@ -67,39 +67,28 @@ public:
             std::lock_guard<std::mutex> lock(servers_mutex_);
             servers_.clear();
         }
-        running_.store(true);
 
         DNSServiceErrorType err1 = DNSServiceBrowse(
             &browse_ref_sendspin_, 0, 0, "_sendspin._tcp", nullptr, browse_callback, this);
-        if (err1 != kDNSServiceErr_NoError) {
+        if (err1 == kDNSServiceErr_NoError && browse_ref_sendspin_) {
+            DNSServiceSetDispatchQueue(browse_ref_sendspin_, dispatch_get_main_queue());
+        } else {
             NSLog(@"[NativeMdnsBrowser] Failed to browse _sendspin._tcp: %d", err1);
         }
 
         DNSServiceErrorType err2 = DNSServiceBrowse(
             &browse_ref_ma_, 0, 0, "_music-assistant._tcp", nullptr, browse_callback, this);
-        if (err2 != kDNSServiceErr_NoError) {
+        if (err2 == kDNSServiceErr_NoError && browse_ref_ma_) {
+            DNSServiceSetDispatchQueue(browse_ref_ma_, dispatch_get_main_queue());
+        } else {
             NSLog(@"[NativeMdnsBrowser] Failed to browse _music-assistant._tcp: %d", err2);
         }
 
-        thread_ = std::thread([this] { run_loop(); });
-        NSLog(@"[NativeMdnsBrowser] DNS-SD browser active");
+        NSLog(@"[NativeMdnsBrowser] DNS-SD browser active (DispatchQueue mode)");
         return true;
     }
 
     void stop() {
-        running_.store(false);
-        if (thread_.joinable()) {
-            thread_.join();
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(resolve_mutex_);
-            for (auto& ref : pending_resolves_) {
-                DNSServiceRefDeallocate(ref);
-            }
-            pending_resolves_.clear();
-        }
-
         if (browse_ref_sendspin_ != nullptr) {
             DNSServiceRefDeallocate(browse_ref_sendspin_);
             browse_ref_sendspin_ = nullptr;
@@ -121,63 +110,6 @@ public:
     }
 
 private:
-    void add_resolve_ref(DNSServiceRef ref) {
-        std::lock_guard<std::mutex> lock(resolve_mutex_);
-        pending_resolves_.push_back(ref);
-    }
-
-    void remove_resolve_ref(DNSServiceRef ref) {
-        std::lock_guard<std::mutex> lock(resolve_mutex_);
-        pending_resolves_.erase(
-            std::remove(pending_resolves_.begin(), pending_resolves_.end(), ref),
-            pending_resolves_.end());
-    }
-
-    void run_loop() {
-        while (running_.load()) {
-            std::vector<DNSServiceRef> refs;
-            if (browse_ref_sendspin_) refs.push_back(browse_ref_sendspin_);
-            if (browse_ref_ma_) refs.push_back(browse_ref_ma_);
-            {
-                std::lock_guard<std::mutex> lock(resolve_mutex_);
-                refs.insert(refs.end(), pending_resolves_.begin(), pending_resolves_.end());
-            }
-
-            if (refs.empty()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                continue;
-            }
-
-            fd_set read_fds;
-            FD_ZERO(&read_fds);
-            int max_fd = -1;
-
-            for (auto ref : refs) {
-                int fd = DNSServiceRefSockFD(ref);
-                if (fd >= 0) {
-                    FD_SET(fd, &read_fds);
-                    if (fd > max_fd) max_fd = fd;
-                }
-            }
-
-            if (max_fd < 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                continue;
-            }
-
-            struct timeval tv { 0, 100000 };
-            int res = select(max_fd + 1, &read_fds, nullptr, nullptr, &tv);
-            if (res > 0) {
-                for (auto ref : refs) {
-                    int fd = DNSServiceRefSockFD(ref);
-                    if (fd >= 0 && FD_ISSET(fd, &read_fds)) {
-                        DNSServiceProcessResult(ref);
-                    }
-                }
-            }
-        }
-    }
-
     static void DNSSD_API browse_callback(DNSServiceRef /*ref*/, DNSServiceFlags flags,
                                            uint32_t interface_index, DNSServiceErrorType error,
                                            const char* name, const char* regtype,
@@ -192,8 +124,8 @@ private:
             DNSServiceRef resolve_ref = nullptr;
             DNSServiceErrorType err = DNSServiceResolve(
                 &resolve_ref, 0, interface_index, name, regtype, domain, resolve_callback, ctx);
-            if (err == kDNSServiceErr_NoError) {
-                browser->add_resolve_ref(resolve_ref);
+            if (err == kDNSServiceErr_NoError && resolve_ref) {
+                DNSServiceSetDispatchQueue(resolve_ref, dispatch_get_main_queue());
             } else {
                 delete ctx;
             }
@@ -212,7 +144,6 @@ private:
         auto* ctx = static_cast<ResolveContext*>(context);
 
         if (error != kDNSServiceErr_NoError || !hosttarget) {
-            ctx->browser->remove_resolve_ref(ref);
             DNSServiceRefDeallocate(ref);
             delete ctx;
             return;
@@ -226,7 +157,6 @@ private:
             ctx->path = std::string(static_cast<const char*>(path_val), path_len);
         }
 
-        ctx->browser->remove_resolve_ref(ref);
         DNSServiceRefDeallocate(ref);
 
         std::thread([ctx, host = std::string(hosttarget)]() {
@@ -264,14 +194,9 @@ private:
     __weak SendspinBridge *bridge_{nil};
     DNSServiceRef browse_ref_sendspin_{nullptr};
     DNSServiceRef browse_ref_ma_{nullptr};
-    std::atomic<bool> running_{false};
-    std::thread thread_;
 
     mutable std::mutex servers_mutex_;
     std::map<ServiceKey, DiscoveredServerInfo> servers_;
-
-    std::mutex resolve_mutex_;
-    std::vector<DNSServiceRef> pending_resolves_;
 };
 
 @interface SendspinBridge () {
