@@ -677,16 +677,33 @@ private:
         }
     });
 
-    // If we have a saved server and auto-connect is enabled, connect immediately
+    // If we have a saved server and auto-connect is enabled, connect asynchronously
     if (_autoConnectToSavedServer && _savedServerHost.length > 0 && _savedServerPort > 0) {
-        NSLog(@"[SendspinBridge] Connecting to saved server %@:%u", _savedServerHost, _savedServerPort);
-        [self connectToRemoteServer:_savedServerHost port:_savedServerPort name:_savedServerName remember:NO];
+        NSString *localIP = GetLocalWiFiIPAddress();
+        if (!([_savedServerHost isEqualToString:localIP] || [_savedServerHost isEqualToString:@"127.0.0.1"])) {
+            NSString *sHost = [_savedServerHost copy];
+            uint16_t sPort = _savedServerPort;
+            NSString *sName = [_savedServerName copy];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self connectToRemoteServer:sHost port:sPort name:sName remember:NO];
+            });
+        }
     }
 }
 
 - (void)connectToRemoteServer:(NSString *)host port:(uint16_t)port name:(NSString *)name remember:(BOOL)remember {
+    NSString *localIP = GetLocalWiFiIPAddress();
+    if (([host isEqualToString:localIP] || [host isEqualToString:@"127.0.0.1"]) && (port == _listeningPort || port == 0)) {
+        NSLog(@"[SendspinBridge] Refusing to connect to self (%@:%u)", host, port);
+        return;
+    }
+
     if (!_client) {
         [self startServiceWithName:_playerName port:_listeningPort];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self connectToRemoteServer:host port:port name:name remember:remember];
+        });
+        return;
     }
 
     _connectedServerAddress = [NSString stringWithFormat:@"%@:%u", host, port];

@@ -171,7 +171,7 @@
                 _manualHostField.textColor = [UIColor whiteColor];
                 _manualHostField.font = [UIFont systemFontOfSize:14];
                 _manualHostField.textAlignment = NSTextAlignmentRight;
-                _manualHostField.placeholder = @"192.168.1.163";
+                _manualHostField.placeholder = @"192.168.1.152";
                 _manualHostField.keyboardType = UIKeyboardTypeNumbersAndPunctuation;
                 _manualHostField.autocorrectionType = UITextAutocorrectionTypeNo;
                 _manualHostField.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -179,6 +179,8 @@
                 NSString *savedHost = [[NSUserDefaults standardUserDefaults] stringForKey:@"SendspinLastHost"];
                 if (savedHost.length > 0) {
                     _manualHostField.text = savedHost;
+                } else {
+                    _manualHostField.text = @"192.168.1.152";
                 }
             }
             cell.accessoryView = _manualHostField;
@@ -189,11 +191,11 @@
                 _manualPortField.textColor = [UIColor whiteColor];
                 _manualPortField.font = [UIFont systemFontOfSize:14];
                 _manualPortField.textAlignment = NSTextAlignmentRight;
-                _manualPortField.placeholder = @"8928";
+                _manualPortField.placeholder = @"8927";
                 _manualPortField.keyboardType = UIKeyboardTypeNumberPad;
                 
                 NSString *savedPort = [[NSUserDefaults standardUserDefaults] stringForKey:@"SendspinLastPort"];
-                _manualPortField.text = (savedPort.length > 0) ? savedPort : @"8928";
+                _manualPortField.text = (savedPort.length > 0) ? savedPort : @"8927";
             }
             cell.accessoryView = _manualPortField;
         } else if (indexPath.row == 2) {
@@ -263,9 +265,9 @@
     NSString *portStr = [_manualPortField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     
     if (host.length == 0) {
-        host = @"192.168.1.163";
+        host = @"192.168.1.152";
     }
-    uint16_t port = (portStr.length > 0) ? (uint16_t)[portStr intValue] : 8928;
+    uint16_t port = (portStr.length > 0) ? (uint16_t)[portStr intValue] : 8927;
     
     [[NSUserDefaults standardUserDefaults] setObject:host forKey:@"SendspinLastHost"];
     [[NSUserDefaults standardUserDefaults] setObject:portStr forKey:@"SendspinLastPort"];
