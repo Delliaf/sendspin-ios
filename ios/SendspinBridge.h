@@ -17,7 +17,8 @@ typedef NS_ENUM(NSInteger, SendspinConnectionState) {
     SendspinConnectionStateListening,
     SendspinConnectionStateConnecting,
     SendspinConnectionStateConnected,
-    SendspinConnectionStateSynchronized
+    SendspinConnectionStateSynchronized,
+    SendspinConnectionStateError
 };
 
 typedef NS_ENUM(NSInteger, SendspinPlaybackState) {

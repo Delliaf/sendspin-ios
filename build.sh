@@ -129,6 +129,8 @@ echo "=== Creating DEB Package ==="
 rm -rf $BUILD_DIR/deb
 mkdir -p $BUILD_DIR/deb/DEBIAN $BUILD_DIR/deb/Applications
 cp -r $BUILD_DIR/Payload/Sendspin.app $BUILD_DIR/deb/Applications/
+chmod -R 755 $BUILD_DIR/deb/Applications/Sendspin.app
+
 cat << "DEB_EOF" > $BUILD_DIR/deb/DEBIAN/control
 Package: com.sendspin.player
 Name: Sendspin Player
@@ -140,6 +142,40 @@ Author: Delliaf
 Section: Multimedia
 Depends: firmware (>= 3.0)
 DEB_EOF
+
+cat << "POSTINST_EOF" > $BUILD_DIR/deb/DEBIAN/postinst
+#!/bin/sh
+set -e
+
+chown -R root:wheel /Applications/Sendspin.app 2>/dev/null || true
+chmod 755 /Applications/Sendspin.app
+chmod 755 /Applications/Sendspin.app/Sendspin
+
+if which uicache >/dev/null 2>&1; then
+    uicache
+elif [ -x /usr/bin/uicache ]; then
+    /usr/bin/uicache
+fi
+
+exit 0
+POSTINST_EOF
+chmod 755 $BUILD_DIR/deb/DEBIAN/postinst
+
+cat << "POSTRM_EOF" > $BUILD_DIR/deb/DEBIAN/postrm
+#!/bin/sh
+set -e
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    if which uicache >/dev/null 2>&1; then
+        uicache
+    elif [ -x /usr/bin/uicache ]; then
+        /usr/bin/uicache
+    fi
+fi
+
+exit 0
+POSTRM_EOF
+chmod 755 $BUILD_DIR/deb/DEBIAN/postrm
 
 rm -f $OUT_DIR/com.sendspin.player_1.0.0_iphoneos-arm.deb $PUB_DIR/Sendspin.deb
 dpkg-deb -Zgzip -b $BUILD_DIR/deb $OUT_DIR/com.sendspin.player_1.0.0_iphoneos-arm.deb
