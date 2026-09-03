@@ -96,6 +96,7 @@ static NSString *GetLocalWiFiIPAddress() {
     NSMutableSet<NSString *> *_promptedServers;
     uint32_t _currentProgressMs;
     uint32_t _currentDurationMs;
+    NSTimeInterval _progressAnchorTime;
 }
 
 @property (nonatomic, assign, readwrite) SendspinConnectionState connectionState;
@@ -116,6 +117,7 @@ static NSString *GetLocalWiFiIPAddress() {
 @property (nonatomic, assign, readwrite) float currentVolume;
 @property (nonatomic, assign, readwrite) BOOL currentMuted;
 
+- (void)updateProgressAnchor:(uint32_t)progressMs;
 - (void)handleDiscoveredServers:(NSArray<NSDictionary *> *)servers;
 
 @end
@@ -467,20 +469,26 @@ public:
         uint16_t track = md.track.value_or(0);
         uint32_t progress = md.progress ? md.progress->track_progress : 0;
         uint32_t duration = md.progress ? md.progress->track_duration : 0;
+        uint32_t speed = md.progress ? md.progress->playback_speed : 0;
         
         NSString *artUrlStr = nil;
         if (md.artwork_url && !md.artwork_url->empty()) {
             artUrlStr = [NSString stringWithUTF8String:md.artwork_url->c_str()];
         }
 
+        SendspinPlaybackState newState = (speed > 0) ? SendspinPlaybackStatePlaying : SendspinPlaybackStatePaused;
         __weak SendspinBridge *b = bridge_;
         dispatch_async(dispatch_get_main_queue(), ^{
             b.currentTitle = title;
             b.currentArtist = artist;
             b.currentAlbum = album;
             b.currentTrackNum = track;
-            b.currentProgressMs = progress;
             b.currentDurationMs = duration;
+            b.playbackState = newState;
+            [b updateProgressAnchor:progress];
+            if ([b.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
+                [b.delegate sendspinPlaybackStateChanged:newState];
+            }
             if ([b.delegate respondsToSelector:@selector(sendspinMetadataUpdatedTitle:artist:album:genre:trackNum:durationMs:progressMs:)]) {
                 [b.delegate sendspinMetadataUpdatedTitle:title 
                                                   artist:artist 
@@ -494,10 +502,11 @@ public:
         });
 
         if (artUrlStr.length > 0) {
+            NSLog(@"[SendspinBridge] Artwork URL from metadata: %@", artUrlStr);
             if ([artUrlStr hasPrefix:@"/"]) {
                 NSString *host = b.savedServerHost ?: @"192.168.1.152";
-                uint16_t port = b.savedServerPort > 0 ? b.savedServerPort : 8927;
-                artUrlStr = [NSString stringWithFormat:@"http://%@:%u%@", host, port, artUrlStr];
+                // Music Assistant HTTP media server runs on port 8095
+                artUrlStr = [NSString stringWithFormat:@"http://%@:8095%@", host, artUrlStr];
             }
             
             NSURL *artUrl = [NSURL URLWithString:artUrlStr];
@@ -593,22 +602,30 @@ private:
     std::unique_ptr<AppArtworkListener> _artworkListener;
 }
 
+- (void)updateProgressAnchor:(uint32_t)progressMs {
+    _currentProgressMs = progressMs;
+    _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+}
+
 - (uint32_t)currentProgressMs {
-    if (_metadataRole) {
-        return _metadataRole->get_track_progress_ms();
+    if (_currentDurationMs == 0) return 0;
+    if (self.playbackState != SendspinPlaybackStatePlaying || _progressAnchorTime <= 0) {
+        return _currentProgressMs;
     }
-    return _currentProgressMs;
+    NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _progressAnchorTime;
+    int64_t current = (int64_t)_currentProgressMs + (int64_t)(elapsed * 1000.0);
+    if (current < 0) current = 0;
+    if (current > (int64_t)_currentDurationMs) current = _currentDurationMs;
+    return (uint32_t)current;
 }
 
 - (uint32_t)currentDurationMs {
-    if (_metadataRole) {
-        return _metadataRole->get_track_duration_ms();
-    }
     return _currentDurationMs;
 }
 
 - (void)setCurrentProgressMs:(uint32_t)val {
     _currentProgressMs = val;
+    _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
 }
 
 - (void)setCurrentDurationMs:(uint32_t)val {
@@ -1014,6 +1031,7 @@ private:
 }
 
 - (void)seekToMs:(uint32_t)positionMs {
+    [self updateProgressAnchor:positionMs];
     if (_controllerRole) {
         _controllerRole->send_command({.command = sendspin::SendspinControllerCommand::SEEK, .position_ms = positionMs});
     }

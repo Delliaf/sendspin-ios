@@ -8,10 +8,10 @@ Author: Delliaf
 Section: Multimedia
 Depends: firmware (>= 3.0)
 Filename: ./debs/com.sendspin.player_1.0.1_iphoneos-arm.deb
-Size: 525214
-MD5sum: a65c075927aa322d9729332bb46d12ce
-SHA1: dd7472572e604d6d57d815be78e60aff2442de5d
-SHA256: d79d504c28e1e5b4a280a761f3819e9a90c4f24bf6551c4d4f146c0fef51c689
+Size: 525750
+MD5sum: 7bbdf9eac344b6f4ad0a9131ea90c3a6
+SHA1: a5874600f75d5e6c2e2ba99443be6f2fdd157015
+SHA256: 53b4b8fc166d748f6b2a1772c7e325782c7b152d361405f38159106eab888175
 Depiction: https://delliaf.github.io/sendspin-ios/depiction.html
 Icon: https://delliaf.github.io/sendspin-ios/CydiaIcon.png
 
