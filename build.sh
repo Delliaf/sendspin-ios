@@ -169,13 +169,36 @@ cat << "XML_EOF" > $BUILD_DIR/Payload/Sendspin.app/_CodeSignature/CodeResources
 </plist>
 XML_EOF
 
+cat << "META_EOF" > $BUILD_DIR/iTunesMetadata.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleVersion</key>
+	<string>1.0.1</string>
+	<key>itemName</key>
+	<string>Sendspin</string>
+	<key>kind</key>
+	<string>software</string>
+	<key>playlistName</key>
+	<string>Sendspin</string>
+	<key>softwareVersionBundleId</key>
+	<string>com.sendspin.player</string>
+	<key>softwareVersionExternalIdentifier</key>
+	<integer>105</integer>
+</dict>
+</plist>
+META_EOF
+
+cp $SRC_DIR/assets/icons/iTunesArtwork.png $BUILD_DIR/iTunesArtwork 2>/dev/null || true
+
 echo "=== Code Signing with ldid ==="
 /usr/local/bin/ldid -S$SRC_DIR/ios/Entitlements.plist $BUILD_DIR/Payload/Sendspin.app/Sendspin
 
 echo "=== Creating IPA ==="
 cd $BUILD_DIR
 rm -f $OUT_DIR/Sendspin-*.ipa $PUB_DIR/Sendspin.ipa
-zip -qr9 $OUT_DIR/Sendspin-1.0.1.ipa Payload
+zip -qr9 $OUT_DIR/Sendspin-1.0.1.ipa Payload iTunesMetadata.plist iTunesArtwork
 cp $OUT_DIR/Sendspin-1.0.1.ipa $PUB_DIR/Sendspin.ipa
 
 echo "=== Creating DEB Package ==="
