@@ -341,15 +341,15 @@ public:
 
     void on_volume_changed(uint8_t volume) override {
         float norm = static_cast<float>(volume) / 100.0f;
-        if (norm > 0.0f || bridge_.currentMuted) {
+        if (norm > 0.005f) {
             [AudioEngine sharedInstance].volume = norm;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                bridge_.currentVolume = norm;
-                if ([bridge_.delegate respondsToSelector:@selector(sendspinVolumeUpdated:muted:)]) {
-                    [bridge_.delegate sendspinVolumeUpdated:norm muted:bridge_.currentMuted];
-                }
-            });
         }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            bridge_.currentVolume = (norm > 0.005f) ? norm : 1.0f;
+            if ([bridge_.delegate respondsToSelector:@selector(sendspinVolumeUpdated:muted:)]) {
+                [bridge_.delegate sendspinVolumeUpdated:bridge_.currentVolume muted:bridge_.currentMuted];
+            }
+        });
     }
 
     void on_mute_changed(bool muted) override {
@@ -372,14 +372,18 @@ public:
 
     void on_controller_state(const sendspin::ServerStateControllerObject& state) override {
         float norm = static_cast<float>(state.volume) / 100.0f;
-        [AudioEngine sharedInstance].volume = norm;
+        if (norm > 0.005f) {
+            [AudioEngine sharedInstance].volume = norm;
+        }
         [AudioEngine sharedInstance].isMuted = state.muted;
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            bridge_.currentVolume = norm;
+            if (norm > 0.005f) {
+                bridge_.currentVolume = norm;
+            }
             bridge_.currentMuted = state.muted;
             if ([bridge_.delegate respondsToSelector:@selector(sendspinVolumeUpdated:muted:)]) {
-                [bridge_.delegate sendspinVolumeUpdated:norm muted:state.muted];
+                [bridge_.delegate sendspinVolumeUpdated:bridge_.currentVolume muted:state.muted];
             }
         });
     }

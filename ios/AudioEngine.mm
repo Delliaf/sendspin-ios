@@ -131,9 +131,9 @@ static OSStatus CoreAudioRenderCallback(
     }
 
     float vol = engine.volume;
-    if (engine.isMuted || vol <= 0.001f) {
+    if (engine.isMuted) {
         std::memset(outBuffer, 0, bytesNeeded);
-    } else if (std::abs(vol - 1.0f) > 0.005f) {
+    } else if (vol > 0.001f && std::abs(vol - 1.0f) > 0.005f) {
         size_t samples = bytesNeeded / sizeof(int16_t);
         for (size_t i = 0; i < samples; ++i) {
             int32_t sample = static_cast<int32_t>(outBuffer[i] * vol);

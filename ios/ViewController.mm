@@ -662,6 +662,13 @@
 }
 
 - (void)showServerDialog {
+    if (self.presentedViewController) {
+        [self dismissViewControllerAnimated:NO completion:^{
+            [self showServerDialog];
+        }];
+        return;
+    }
+
     SendspinBridge *bridge = [SendspinBridge sharedInstance];
 
     if (NSClassFromString(@"UIAlertController")) {
@@ -671,9 +678,7 @@
 
         UIAlertAction *rescanAction = [UIAlertAction actionWithTitle:@"🔄 Rescan Local Network" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [bridge rescanBonjourServers];
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [self showServerDialog];
-            });
+            self->_statusLabel.text = @"Scanning network...";
         }];
         [alert addAction:rescanAction];
 
