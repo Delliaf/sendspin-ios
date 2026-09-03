@@ -335,6 +335,13 @@
     [_delayResetButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [_delayResetButton addTarget:self action:@selector(onDelayReset) forControlEvents:UIControlEventTouchUpInside];
     [_delayContainerView addSubview:_delayResetButton];
+
+    UILabel *versionBadge = [[UILabel alloc] initWithFrame:CGRectMake(0, screenH - 12, screenW - 6, 10)];
+    versionBadge.font = [UIFont systemFontOfSize:8];
+    versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
+    versionBadge.textAlignment = NSTextAlignmentRight;
+    versionBadge.text = @"Sendspin v1.0.1 (b105)";
+    [self.view addSubview:versionBadge];
 }
 
 #pragma mark - Native Vector Glyphs

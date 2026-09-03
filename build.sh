@@ -150,9 +150,9 @@ echo "=== Code Signing with ldid ==="
 
 echo "=== Creating IPA ==="
 cd $BUILD_DIR
-rm -f $OUT_DIR/Sendspin-1.0.0.ipa $PUB_DIR/Sendspin.ipa
-zip -qr9 $OUT_DIR/Sendspin-1.0.0.ipa Payload
-cp $OUT_DIR/Sendspin-1.0.0.ipa $PUB_DIR/Sendspin.ipa
+rm -f $OUT_DIR/Sendspin-*.ipa $PUB_DIR/Sendspin.ipa
+zip -qr9 $OUT_DIR/Sendspin-1.0.1.ipa Payload
+cp $OUT_DIR/Sendspin-1.0.1.ipa $PUB_DIR/Sendspin.ipa
 
 echo "=== Creating DEB Package ==="
 rm -rf $BUILD_DIR/deb
@@ -163,7 +163,7 @@ chmod -R 755 $BUILD_DIR/deb/Applications/Sendspin.app
 cat << "DEB_EOF" > $BUILD_DIR/deb/DEBIAN/control
 Package: com.sendspin.player
 Name: Sendspin Player
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm
 Description: Sendspin Synchronized Multi-room Audio Player for iOS (Universal iOS 3.0 — 9.3+)
 Maintainer: Delliaf <34547169+Delliaf@users.noreply.github.com>
@@ -221,9 +221,9 @@ exit 0
 POSTRM_EOF
 chmod 755 $BUILD_DIR/deb/DEBIAN/postrm
 
-rm -f $OUT_DIR/com.sendspin.player_1.0.0_iphoneos-arm.deb $PUB_DIR/Sendspin.deb
-dpkg-deb -Zgzip -b $BUILD_DIR/deb $OUT_DIR/com.sendspin.player_1.0.0_iphoneos-arm.deb
-cp $OUT_DIR/com.sendspin.player_1.0.0_iphoneos-arm.deb $PUB_DIR/Sendspin.deb
+rm -f $OUT_DIR/com.sendspin.player_*.deb $PUB_DIR/Sendspin.deb
+dpkg-deb -Zgzip -b $BUILD_DIR/deb $OUT_DIR/com.sendspin.player_1.0.1_iphoneos-arm.deb
+cp $OUT_DIR/com.sendspin.player_1.0.1_iphoneos-arm.deb $PUB_DIR/Sendspin.deb
 
 echo "=== SUCCESS! ==="
 ls -lh $PUB_DIR/Sendspin.ipa $PUB_DIR/Sendspin.deb

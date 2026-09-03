@@ -6,6 +6,7 @@
 #import "AudioEngine.h"
 #import <mach/mach_time.h>
 #include "sendspin/player_role.h"
+#include "sendspin/platform/time.h"
 #include <vector>
 #include <atomic>
 #include <cstring>
@@ -140,14 +141,13 @@ static OSStatus CoreAudioRenderCallback(
         }
     }
 
-    if (engine->_playerRole && (inTimeStamp->mFlags & kAudioTimeStampHostTimeValid)) {
-        uint64_t hostUs = mach_to_microseconds(inTimeStamp->mHostTime);
-        int64_t adjustedUs = static_cast<int64_t>(hostUs) + (static_cast<int64_t>(engine.pioneerDelayMs) * 1000LL);
-        if (adjustedUs < 0) adjustedUs = 0;
+    if (engine->_playerRole) {
+        int64_t nowUs = sendspin::platform_time_us() + (static_cast<int64_t>(engine.pioneerDelayMs) * 1000LL);
+        if (nowUs < 0) nowUs = 0;
         
         uint32_t framesRendered = static_cast<uint32_t>(bytesRead / (2 * sizeof(int16_t)));
         if (framesRendered > 0) {
-            engine->_playerRole->notify_audio_played(framesRendered, adjustedUs);
+            engine->_playerRole->notify_audio_played(framesRendered, nowUs);
         }
     }
 
