@@ -8,16 +8,16 @@ Components: main
 Description: Official Cydia repository for Sendspin iOS Player (iOS 3.0 — iOS 9.3+)
 MD5Sum:
  cec0a456c2ea791dba4af7bc229e51c0 675 main/binary-iphoneos-arm/Packages
- 573ce58e53a425aa39e74d8a785f4ba9 458 main/binary-iphoneos-arm/Packages.gz
+ 8f5745f218e27499ca59a6738c070401 458 main/binary-iphoneos-arm/Packages.gz
  1a768a4196690d5a8271b65fd4fbfa63 500 main/binary-iphoneos-arm/Packages.bz2
  0a156bdfdeafa335190ebd428924979d 516 main/binary-iphoneos-arm/Packages.xz
 SHA1:
  26890bbc14e58dc5a32990c7aa4e671daac215c7 675 main/binary-iphoneos-arm/Packages
- 3559c8cf71f63752c324a7fdc41b58374ec4aa9d 458 main/binary-iphoneos-arm/Packages.gz
+ 2e91d45ec3484cefbfd47d503c59f0b380bd05a0 458 main/binary-iphoneos-arm/Packages.gz
  28c4924fb64c7668173d62da00fc56545688034e 500 main/binary-iphoneos-arm/Packages.bz2
  4ede9830bfde95633002b64ca43ee476e9326540 516 main/binary-iphoneos-arm/Packages.xz
 SHA256:
  32ebc02a809aecfa27d8f161001600b4b23da9d6a47b61509da4f3fdc8cd8026 675 main/binary-iphoneos-arm/Packages
- d5ed3d5575122c93924075220e8c92e27b3d2d1472fbcda38e858b7c763e3179 458 main/binary-iphoneos-arm/Packages.gz
+ b5b36d4d560f79075b637c064fa2c93ecbac04a785354d4fe02fff77363fcd53 458 main/binary-iphoneos-arm/Packages.gz
  39e323e73c776c736c666009de24a6f1a3beb6a7c0acb3ffbf15a36a1729a471 500 main/binary-iphoneos-arm/Packages.bz2
  3e8e9cdd0f361ef9bc6382fb2030f846861e942fbb053fc32cc963828aee4cde 516 main/binary-iphoneos-arm/Packages.xz

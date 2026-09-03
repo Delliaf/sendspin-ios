@@ -62,6 +62,9 @@ def main():
             deb_files.append(dest)
 
     print(f"[Cydia-Repo] Found {len(deb_files)} Debian package(s) for repository.")
+    if len(deb_files) == 0:
+        print("[Cydia-Repo] ERROR: No Debian (.deb) packages found! Aborting.", file=sys.stderr)
+        sys.exit(1)
 
     # Also copy debs to root of OUTPUT_DIR for direct flat URL resolution
     for deb in deb_files:

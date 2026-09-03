@@ -11,6 +11,9 @@ build/
 Payload/
 *.ipa
 *.deb
+!repo/debs/*.deb
+!repo_dist/**/*.deb
+!repo_dist/*.deb
 
 # OS & Editor specific
 .DS_Store
