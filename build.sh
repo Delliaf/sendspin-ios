@@ -57,12 +57,41 @@ $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/AudioEngine.mm -o $BUILD_DIR/obj/AudioEn
 $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/SendspinBridge.mm -o $BUILD_DIR/obj/SendspinBridge.o
 
 cat > $BUILD_DIR/shim.cpp << "EOF"
-#include <cstdint>
 extern "C" {
     void* __dso_handle = 0;
 }
+
+namespace std {
+    class exception {
+    public:
+        virtual ~exception() noexcept;
+        virtual const char* what() const noexcept;
+    };
+    
+    class bad_optional_access : public exception {
+    public:
+        virtual ~bad_optional_access() noexcept;
+        virtual const char* what() const noexcept;
+    };
+    
+    bad_optional_access::~bad_optional_access() noexcept = default;
+    const char* bad_optional_access::what() const noexcept {
+        return "bad optional access";
+    }
+
+    class bad_variant_access : public exception {
+    public:
+        virtual ~bad_variant_access() noexcept;
+        virtual const char* what() const noexcept;
+    };
+
+    bad_variant_access::~bad_variant_access() noexcept = default;
+    const char* bad_variant_access::what() const noexcept {
+        return "bad variant access";
+    }
+}
 EOF
-$CXX -c $INCLUDES $DEFINES -fno-builtin $BUILD_DIR/shim.cpp -o $BUILD_DIR/obj/shim.o
+$CXX -c $INCLUDES $DEFINES -fno-builtin -fexceptions -frtti $BUILD_DIR/shim.cpp -o $BUILD_DIR/obj/shim.o
 
 echo "=== Compiling sendspin-cpp sources ==="
 for f in $SRC_DIR/src/sendspin/*.cpp $SRC_DIR/src/sendspin/host/*.cpp; do
