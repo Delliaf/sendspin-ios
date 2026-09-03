@@ -136,7 +136,6 @@ static NSString *GetLocalWiFiIPAddress() {
         [_discoveredMap removeAllObjects];
     }
     
-    // Exact official Sendspin server mDNS type (matching SendspinDroid)
     NSArray *serviceTypes = @[
         @"_sendspin-server._tcp."
     ];
@@ -148,8 +147,12 @@ static NSString *GetLocalWiFiIPAddress() {
         [_browsers addObject:b];
     }
     
-    [self startSubnetProbe];
     NSLog(@"[BonjourBrowser] Official _sendspin-server._tcp. discovery active");
+}
+
+- (void)rescanWithSubnetProbe {
+    [self start];
+    [self startSubnetProbe];
 }
 
 - (void)stop {
@@ -766,7 +769,10 @@ private:
 - (void)rescanBonjourServers {
     [_discoveredServersInternal removeAllObjects];
     [_promptedServers removeAllObjects];
-    [self startBonjourDiscovery];
+    if (!_bonjourBrowser) {
+        _bonjourBrowser = [[SendspinBonjourBrowser alloc] initWithBridge:self];
+    }
+    [_bonjourBrowser rescanWithSubnetProbe];
 }
 
 - (void)publishBonjourService {

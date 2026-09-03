@@ -69,8 +69,10 @@
     NSInteger savedPort = [[NSUserDefaults standardUserDefaults] integerForKey:@"SendspinServerPort"];
     if (savedPort <= 0) savedPort = 8928;
     
-    [[SendspinBridge sharedInstance] startServiceWithName:savedName port:(uint16_t)savedPort];
-    [[SendspinBridge sharedInstance] startBonjourDiscovery];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[SendspinBridge sharedInstance] startServiceWithName:savedName port:(uint16_t)savedPort];
+        [[SendspinBridge sharedInstance] startBonjourDiscovery];
+    });
 
     // Start smooth progress timer (5Hz)
     _progressTimer = [NSTimer scheduledTimerWithTimeInterval:0.2
@@ -340,7 +342,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b111)";
+    versionBadge.text = @"Sendspin v1.0.1 (b112)";
     [self.view addSubview:versionBadge];
 }
 
