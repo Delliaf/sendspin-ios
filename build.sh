@@ -110,7 +110,7 @@ echo "=== Linking Sendspin Binary ==="
     -framework Foundation -framework UIKit -framework CoreGraphics \
     -framework AudioToolbox -framework AVFoundation -framework MediaPlayer \
     -framework Security -framework CFNetwork -framework CoreFoundation \
-    -lc++ -lc++abi -lobjc -lSystem
+    -lc++ -lobjc -lSystem
 
 echo "=== Packaging Application ==="
 cp $SRC_DIR/ios/Info.plist $BUILD_DIR/Payload/Sendspin.app/Info.plist
