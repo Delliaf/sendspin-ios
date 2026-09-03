@@ -43,9 +43,34 @@ struct ServiceKey {
     }
 };
 
+#import <ifaddrs.h>
+#import <arpa/inet.h>
+#import <fcntl.h>
+
+static NSString *GetLocalWiFiIPAddress() {
+    NSString *address = @"127.0.0.1";
+    struct ifaddrs *interfaces = NULL;
+    struct ifaddrs *temp_addr = NULL;
+    int success = getifaddrs(&interfaces);
+    if (success == 0) {
+        temp_addr = interfaces;
+        while (temp_addr != NULL) {
+            if (temp_addr->ifa_addr && temp_addr->ifa_addr->sa_family == AF_INET) {
+                NSString *ifName = [NSString stringWithUTF8String:temp_addr->ifa_name];
+                if ([ifName isEqualToString:@"en0"] || [ifName isEqualToString:@"en1"]) {
+                    address = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr)];
+                    break;
+                }
+            }
+            temp_addr = temp_addr->ifa_next;
+        }
+    }
+    if (interfaces) freeifaddrs(interfaces);
+    return address;
+}
+
 @interface SendspinBonjourBrowser : NSObject <NSNetServiceBrowserDelegate, NSNetServiceDelegate> {
-    NSNetServiceBrowser *_browserSendspin;
-    NSNetServiceBrowser *_browserMA;
+    NSMutableArray<NSNetServiceBrowser *> *_browsers;
     NSMutableArray<NSNetService *> *_resolvingServices;
     NSMutableDictionary<NSString *, NSDictionary *> *_discoveredMap;
 }
@@ -98,6 +123,7 @@ struct ServiceKey {
 - (instancetype)initWithBridge:(SendspinBridge *)bridge {
     if (self = [super init]) {
         _bridge = bridge;
+        _browsers = [NSMutableArray array];
         _resolvingServices = [NSMutableArray array];
         _discoveredMap = [NSMutableDictionary dictionary];
     }
@@ -106,35 +132,103 @@ struct ServiceKey {
 
 - (void)start {
     [self stop];
-    [_discoveredMap removeAllObjects];
+    @synchronized (_discoveredMap) {
+        [_discoveredMap removeAllObjects];
+    }
     
-    _browserSendspin = [[NSNetServiceBrowser alloc] init];
-    _browserSendspin.delegate = self;
-    [_browserSendspin searchForServicesOfType:@"_sendspin._tcp." inDomain:@""];
+    NSArray *serviceTypes = @[
+        @"_sendspin._tcp.",
+        @"_sendspin-server._tcp.",
+        @"_music-assistant._tcp.",
+        @"_mass._tcp.",
+        @"_snapcast._tcp."
+    ];
     
-    _browserMA = [[NSNetServiceBrowser alloc] init];
-    _browserMA.delegate = self;
-    [_browserMA searchForServicesOfType:@"_music-assistant._tcp." inDomain:@""];
+    for (NSString *st in serviceTypes) {
+        NSNetServiceBrowser *b = [[NSNetServiceBrowser alloc] init];
+        b.delegate = self;
+        [b searchForServicesOfType:st inDomain:@"local."];
+        [_browsers addObject:b];
+    }
     
-    NSLog(@"[BonjourBrowser] Native Cocoa NSNetServiceBrowser active");
+    [self startSubnetProbe];
+    NSLog(@"[BonjourBrowser] Native Bonjour & Subnet probe active");
 }
 
 - (void)stop {
-    if (_browserSendspin) {
-        [_browserSendspin stop];
-        _browserSendspin.delegate = nil;
-        _browserSendspin = nil;
+    for (NSNetServiceBrowser *b in _browsers) {
+        [b stop];
+        b.delegate = nil;
     }
-    if (_browserMA) {
-        [_browserMA stop];
-        _browserMA.delegate = nil;
-        _browserMA = nil;
-    }
+    [_browsers removeAllObjects];
+    
     for (NSNetService *s in _resolvingServices) {
         [s stop];
         s.delegate = nil;
     }
     [_resolvingServices removeAllObjects];
+}
+
+- (void)startSubnetProbe {
+    NSString *localIP = GetLocalWiFiIPAddress();
+    if ([localIP isEqualToString:@"127.0.0.1"]) return;
+    
+    NSArray *parts = [localIP componentsSeparatedByString:@"."];
+    if (parts.count != 4) return;
+    
+    NSString *prefix = [NSString stringWithFormat:@"%@.%@.%@.", parts[0], parts[1], parts[2]];
+    uint16_t localPort = _bridge.listeningPort;
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        for (int i = 1; i <= 254; ++i) {
+            NSString *targetIP = [NSString stringWithFormat:@"%@%d", prefix, i];
+            
+            for (uint16_t targetPort : {8927, 8928, 8095}) {
+                if ([targetIP isEqualToString:localIP] && targetPort == localPort) {
+                    continue; // Skip self
+                }
+                
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+                    int sock = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sock >= 0) {
+                        fcntl(sock, F_SETFL, O_NONBLOCK);
+                        struct sockaddr_in sa {};
+                        sa.sin_family = AF_INET;
+                        sa.sin_port = htons(targetPort);
+                        inet_pton(AF_INET, [targetIP UTF8String], &sa.sin_addr);
+                        
+                        connect(sock, (struct sockaddr *)&sa, sizeof(sa));
+                        
+                        fd_set wset;
+                        FD_ZERO(&wset);
+                        FD_SET(sock, &wset);
+                        struct timeval tv { 1, 200000 }; // 1.2s timeout
+                        
+                        if (select(sock + 1, NULL, &wset, NULL, &tv) > 0) {
+                            int err = 0;
+                            socklen_t len = sizeof(err);
+                            getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
+                            if (err == 0) {
+                                NSString *key = [NSString stringWithFormat:@"probe_%@_%u", targetIP, targetPort];
+                                NSString *srvName = (targetPort == 8927) ? @"Music Assistant" : [NSString stringWithFormat:@"Sendspin (%u)", targetPort];
+                                @synchronized (self->_discoveredMap) {
+                                    self->_discoveredMap[key] = @{
+                                        @"name": srvName,
+                                        @"host": targetIP,
+                                        @"port": @(targetPort),
+                                        @"path": @"/sendspin"
+                                    };
+                                }
+                                NSLog(@"[BonjourBrowser] Discovered server via probe: %@:%u", targetIP, targetPort);
+                                [self notifyBridge];
+                            }
+                        }
+                        close(sock);
+                    }
+                });
+            }
+        }
+    });
 }
 
 #pragma mark - NSNetServiceBrowserDelegate
@@ -147,9 +241,10 @@ struct ServiceKey {
 }
 
 - (void)netServiceBrowser:(NSNetServiceBrowser *)browser didRemoveService:(NSNetService *)service moreComing:(BOOL)moreComing {
-    NSLog(@"[BonjourBrowser] Removed service: %@", service.name);
     NSString *key = [NSString stringWithFormat:@"%@_%@", service.type, service.name];
-    [_discoveredMap removeObjectForKey:key];
+    @synchronized (_discoveredMap) {
+        [_discoveredMap removeObjectForKey:key];
+    }
     [self notifyBridge];
 }
 
@@ -168,8 +263,17 @@ struct ServiceKey {
         }
     }
     
+    NSString *localIP = GetLocalWiFiIPAddress();
+    uint16_t localPort = _bridge.listeningPort;
+    NSInteger port = service.port;
+    
     if (host.length > 0) {
-        NSInteger port = service.port;
+        // Skip self
+        if (([host isEqualToString:localIP] || [host isEqualToString:@"127.0.0.1"]) && port == localPort) {
+            [_resolvingServices removeObject:service];
+            return;
+        }
+        
         NSString *path = @"/sendspin";
         NSData *txtData = service.TXTRecordData;
         if (txtData) {
@@ -181,12 +285,14 @@ struct ServiceKey {
         }
         
         NSString *key = [NSString stringWithFormat:@"%@_%@", service.type, service.name];
-        _discoveredMap[key] = @{
-            @"name": service.name ?: @"Music Assistant",
-            @"host": host,
-            @"port": @(port),
-            @"path": path
-        };
+        @synchronized (_discoveredMap) {
+            _discoveredMap[key] = @{
+                @"name": service.name ?: @"Music Assistant",
+                @"host": host,
+                @"port": @(port),
+                @"path": path
+            };
+        }
         NSLog(@"[BonjourBrowser] Resolved %@ -> %@:%ld%@", service.name, host, (long)port, path);
         [self notifyBridge];
     }
@@ -200,8 +306,13 @@ struct ServiceKey {
 
 - (void)notifyBridge {
     if (!_bridge) return;
-    NSArray *servers = [_discoveredMap allValues];
-    [_bridge handleDiscoveredServers:servers];
+    NSArray *servers = nil;
+    @synchronized (_discoveredMap) {
+        servers = [_discoveredMap allValues];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self->_bridge handleDiscoveredServers:servers];
+    });
 }
 
 @end
