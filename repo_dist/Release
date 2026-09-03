@@ -8,16 +8,16 @@ Components: main
 Description: Official Cydia repository for Sendspin iOS Player (iOS 3.0 — iOS 9.3+)
 MD5Sum:
  96773f145e57e5367c4118ec2fc5ce4c 672 Packages
- 9eb060511166f17b17a620269a8b7b52 456 Packages.gz
+ c2d7cb9652a7d0b2289ad8957124948d 456 Packages.gz
  600ceec026175aa54f2a2c348da10e14 507 Packages.bz2
  169d66a48b78178c3b2c4bdc7a555eb9 508 Packages.xz
 SHA1:
  d5cce691686bc9f2ce83379f499ec12caf1f77a7 672 Packages
- c318368f87cf16226c7b0be3bc1790df6d091cb6 456 Packages.gz
+ 8b0ea4db345d1b6c0f679de591f52981a88ae2cd 456 Packages.gz
  ccb2fa01af8c4df7b37a7b3fa0aab3632977a7f3 507 Packages.bz2
  8e3d501449d7c3ef2e6fce6e8545d6e6017fdd2f 508 Packages.xz
 SHA256:
  65e14ef98ae438bf8a6ca68efd1560761a4f289d0fdf246eed0c058185f45f1b 672 Packages
- 3fedac9a2749d038efb1a24db7920a623f3678fee4ac03225b13c6bbe02e09ea 456 Packages.gz
+ 494313d91c2e24899a7fe888513900f3410826d30f6b0bd6cb50e4e615b4bd1a 456 Packages.gz
  77064ad6346d12321e4dc3f1610065b5df788a785540063eb9ecbd64052f1ca8 507 Packages.bz2
  862e8fbef9454e899fedd3bff870f16e30b8b77b7edf59083c08ba5aaf423454 508 Packages.xz

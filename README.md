@@ -30,13 +30,18 @@ Designed with sub-millisecond clock synchronization and ultra-low CPU/memory foo
 
 ## 📱 Hardware & OS Compatibility
 
-| Device | Processor / Arch | Compatible iOS Versions | Audio Output Options |
+> **⚠️ Hardware Testing Note:**  
+> This application is **physically tested and verified on an iPhone 4s running iOS 9.3.6 (ARMv7)**.  
+> Architecture and fallback paths for other legacy iOS versions (iOS 3.0 — 10.3.x) and devices (iPhone 3GS/4/5, iPod touch, iPad) are implemented using standard CoreAudio / C-level Bonjour APIs, but have not yet been independently verified on physical hardware. Community test feedback on other vintage hardware is welcome!
+
+| Device | Processor / Arch | Compatible iOS Versions | Physical Test Status |
 |---|---|---|---|
-| **iPhone 4s** | Apple A5 (ARMv7 32-bit) | iOS 9.0 — 9.3.6 | 3.5mm Jack, 30-pin Line-Out, USB Digital DAC |
-| **iPhone 5 / 5c** | Apple A6 (ARMv7s 32-bit) | iOS 9.0 — 10.3.4 | 3.5mm Jack, Lightning Audio / DAC |
-| **iPod touch 5** | Apple A5 (ARMv7 32-bit) | iOS 9.0 — 9.3.5 | 3.5mm Jack, Lightning Audio / DAC |
-| **iPad 2 / 3 / 4 / mini 1** | Apple A5 / A5X / A6X | iOS 9.0 — 10.3.4 | 3.5mm Jack, 30-pin / Lightning Audio |
-| **64-bit Devices** (5s, 6, 6s, SE) | Apple A7 — A9 (ARM64) | iOS 9.0 — 10.3.3 *(in 32-bit mode)* | 3.5mm Jack, Lightning Audio |
+| **iPhone 4s** | Apple A5 (ARMv7 32-bit) | iOS 9.0 — 9.3.6 | ✅ **Verified & Tested on iOS 9.3.6** |
+| **iPhone 5 / 5c** | Apple A6 (ARMv7s 32-bit) | iOS 9.0 — 10.3.4 | 🟡 Compatible (Untested on hardware) |
+| **iPhone 4 / 3GS** | Apple A4 / Cortex-A8 | iOS 4.0 — 7.1.2 | 🟡 Compatible (Untested on hardware) |
+| **iPod touch 3 / 4 / 5** | ARMv7 | iOS 4.0 — 9.3.5 | 🟡 Compatible (Untested on hardware) |
+| **iPad 1 / 2 / 3 / 4 / mini 1** | Apple A4 / A5 / A6X | iOS 3.2 — 10.3.4 | 🟡 Compatible (Untested on hardware) |
+| **iPhone 2G / 3G, iPod 1/2** | ARM11 (ARMv6) | iOS 3.0 — 4.2.1 | 🟡 Compatible (Untested on hardware) |
 
 ---
 
