@@ -977,7 +977,9 @@ private:
         }
     }
 
-    [[MPNowPlayingInfoCenter defaultCenter] setNowPlayingInfo:info];
+    if (NSClassFromString(@"MPNowPlayingInfoCenter")) {
+        [[MPNowPlayingInfoCenter defaultCenter] setNowPlayingInfo:info];
+    }
 }
 
 @end

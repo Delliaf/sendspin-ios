@@ -439,10 +439,15 @@ static OSStatus CoreAudioRenderCallback(
 #pragma mark - Notifications
 
 - (void)handleRouteChange:(NSNotification *)notification {
-    AVAudioSessionRouteDescription *currentRoute = [AVAudioSession sharedInstance].currentRoute;
-    NSString *outputName = @"Default Speaker";
-    if (currentRoute.outputs.count > 0) {
-        outputName = currentRoute.outputs[0].portName;
+    NSString *outputName = @"Default Output";
+    if (NSClassFromString(@"AVAudioSession")) {
+        AVAudioSession *session = [AVAudioSession sharedInstance];
+        if ([session respondsToSelector:@selector(currentRoute)]) {
+            AVAudioSessionRouteDescription *currentRoute = session.currentRoute;
+            if (currentRoute.outputs.count > 0) {
+                outputName = currentRoute.outputs[0].portName;
+            }
+        }
     }
     NSLog(@"[AudioEngine] Route changed -> Output: %@", outputName);
 
