@@ -136,12 +136,9 @@ static NSString *GetLocalWiFiIPAddress() {
         [_discoveredMap removeAllObjects];
     }
     
+    // Exact official Sendspin server mDNS type (matching SendspinDroid)
     NSArray *serviceTypes = @[
-        @"_sendspin._tcp.",
-        @"_sendspin-server._tcp.",
-        @"_music-assistant._tcp.",
-        @"_mass._tcp.",
-        @"_snapcast._tcp."
+        @"_sendspin-server._tcp."
     ];
     
     for (NSString *st in serviceTypes) {
@@ -152,7 +149,7 @@ static NSString *GetLocalWiFiIPAddress() {
     }
     
     [self startSubnetProbe];
-    NSLog(@"[BonjourBrowser] Native Bonjour & Subnet probe active");
+    NSLog(@"[BonjourBrowser] Official _sendspin-server._tcp. discovery active");
 }
 
 - (void)stop {
@@ -182,51 +179,51 @@ static NSString *GetLocalWiFiIPAddress() {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         for (int i = 1; i <= 254; ++i) {
             NSString *targetIP = [NSString stringWithFormat:@"%@%d", prefix, i];
+            uint16_t targetPort = 8927; // Music Assistant Sendspin server port
             
-            for (uint16_t targetPort : {8927, 8928, 8095}) {
-                if ([targetIP isEqualToString:localIP] && targetPort == localPort) {
-                    continue; // Skip self
-                }
-                
-                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
-                    int sock = socket(AF_INET, SOCK_STREAM, 0);
-                    if (sock >= 0) {
-                        fcntl(sock, F_SETFL, O_NONBLOCK);
-                        struct sockaddr_in sa {};
-                        sa.sin_family = AF_INET;
-                        sa.sin_port = htons(targetPort);
-                        inet_pton(AF_INET, [targetIP UTF8String], &sa.sin_addr);
-                        
-                        connect(sock, (struct sockaddr *)&sa, sizeof(sa));
-                        
-                        fd_set wset;
-                        FD_ZERO(&wset);
-                        FD_SET(sock, &wset);
-                        struct timeval tv { 1, 200000 }; // 1.2s timeout
-                        
-                        if (select(sock + 1, NULL, &wset, NULL, &tv) > 0) {
-                            int err = 0;
-                            socklen_t len = sizeof(err);
-                            getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
-                            if (err == 0) {
-                                NSString *key = [NSString stringWithFormat:@"probe_%@_%u", targetIP, targetPort];
-                                NSString *srvName = (targetPort == 8927) ? @"Music Assistant" : [NSString stringWithFormat:@"Sendspin (%u)", targetPort];
-                                @synchronized (self->_discoveredMap) {
+            if ([targetIP isEqualToString:localIP] && targetPort == localPort) {
+                continue; // Skip self
+            }
+            
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+                int sock = socket(AF_INET, SOCK_STREAM, 0);
+                if (sock >= 0) {
+                    fcntl(sock, F_SETFL, O_NONBLOCK);
+                    struct sockaddr_in sa {};
+                    sa.sin_family = AF_INET;
+                    sa.sin_port = htons(targetPort);
+                    inet_pton(AF_INET, [targetIP UTF8String], &sa.sin_addr);
+                    
+                    connect(sock, (struct sockaddr *)&sa, sizeof(sa));
+                    
+                    fd_set wset;
+                    FD_ZERO(&wset);
+                    FD_SET(sock, &wset);
+                    struct timeval tv { 1, 200000 }; // 1.2s timeout
+                    
+                    if (select(sock + 1, NULL, &wset, NULL, &tv) > 0) {
+                        int err = 0;
+                        socklen_t len = sizeof(err);
+                        getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
+                        if (err == 0) {
+                            NSString *key = [NSString stringWithFormat:@"%@:%u", targetIP, targetPort];
+                            @synchronized (self->_discoveredMap) {
+                                if (!self->_discoveredMap[key]) {
                                     self->_discoveredMap[key] = @{
-                                        @"name": srvName,
+                                        @"name": @"Music Assistant",
                                         @"host": targetIP,
                                         @"port": @(targetPort),
                                         @"path": @"/sendspin"
                                     };
                                 }
-                                NSLog(@"[BonjourBrowser] Discovered server via probe: %@:%u", targetIP, targetPort);
-                                [self notifyBridge];
                             }
+                            NSLog(@"[BonjourBrowser] Discovered server via probe: %@:%u", targetIP, targetPort);
+                            [self notifyBridge];
                         }
-                        close(sock);
                     }
-                });
-            }
+                    close(sock);
+                }
+            });
         }
     });
 }
@@ -275,6 +272,8 @@ static NSString *GetLocalWiFiIPAddress() {
         }
         
         NSString *path = @"/sendspin";
+        NSString *friendlyName = service.name ?: @"Music Assistant";
+        
         NSData *txtData = service.TXTRecordData;
         if (txtData) {
             NSDictionary *txtDict = [NSNetService dictionaryFromTXTRecordData:txtData];
@@ -282,18 +281,23 @@ static NSString *GetLocalWiFiIPAddress() {
             if (pathData) {
                 path = [[NSString alloc] initWithData:pathData encoding:NSUTF8StringEncoding] ?: @"/sendspin";
             }
+            NSData *nameData = txtDict[@"name"];
+            if (nameData) {
+                friendlyName = [[NSString alloc] initWithData:nameData encoding:NSUTF8StringEncoding] ?: friendlyName;
+            }
         }
         
-        NSString *key = [NSString stringWithFormat:@"%@_%@", service.type, service.name];
+        // Canonical deduplication key: host:port
+        NSString *key = [NSString stringWithFormat:@"%@:%ld", host, (long)port];
         @synchronized (_discoveredMap) {
             _discoveredMap[key] = @{
-                @"name": service.name ?: @"Music Assistant",
+                @"name": friendlyName,
                 @"host": host,
                 @"port": @(port),
                 @"path": path
             };
         }
-        NSLog(@"[BonjourBrowser] Resolved %@ -> %@:%ld%@", service.name, host, (long)port, path);
+        NSLog(@"[BonjourBrowser] Resolved %@ -> %@:%ld%@", friendlyName, host, (long)port, path);
         [self notifyBridge];
     }
     [_resolvingServices removeObject:service];
