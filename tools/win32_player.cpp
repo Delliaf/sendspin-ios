@@ -131,6 +131,150 @@ void DrawRoundRect(HDC hdc, int x, int y, int w, int h, int r, COLORREF fill, CO
     DeleteObject(hPen);
 }
 
+// Exact iOS Vector Glyph Renderers
+void DrawPlayIconVector(HDC hdc, int cx, int cy, int size, COLORREF color) {
+    HBRUSH hBrush = CreateSolidBrush(color);
+    HPEN hPen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+
+    int halfH = size / 2;
+    int halfW = (size * 7) / 10;
+    POINT pts[3] = {
+        { cx - halfW / 2, cy - halfH },
+        { cx + halfW, cy },
+        { cx - halfW / 2, cy + halfH }
+    };
+    Polygon(hdc, pts, 3);
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(hBrush);
+    DeleteObject(hPen);
+}
+
+void DrawPauseIconVector(HDC hdc, int cx, int cy, int size, COLORREF color) {
+    HBRUSH hBrush = CreateSolidBrush(color);
+    HPEN hPen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+
+    int barW = 5;
+    int barH = size;
+    int gap = 6;
+    int x1 = cx - barW - gap / 2;
+    int x2 = cx + gap / 2;
+    int y = cy - barH / 2;
+
+    RoundRect(hdc, x1, y, x1 + barW, y + barH, 3, 3);
+    RoundRect(hdc, x2, y, x2 + barW, y + barH, 3, 3);
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(hBrush);
+    DeleteObject(hPen);
+}
+
+void DrawNextIconVector(HDC hdc, int cx, int cy, int size, COLORREF color) {
+    HBRUSH hBrush = CreateSolidBrush(color);
+    HPEN hPen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+
+    int h = (size * 3) / 4;
+    int triW = 9;
+
+    // First Triangle
+    POINT pts1[3] = {
+        { cx - 11, cy - h / 2 },
+        { cx - 2, cy },
+        { cx - 11, cy + h / 2 }
+    };
+    Polygon(hdc, pts1, 3);
+
+    // Second Triangle
+    POINT pts2[3] = {
+        { cx - 2, cy - h / 2 },
+        { cx + 7, cy },
+        { cx - 2, cy + h / 2 }
+    };
+    Polygon(hdc, pts2, 3);
+
+    // End Bar
+    RoundRect(hdc, cx + 8, cy - h / 2, cx + 11, cy + h / 2, 2, 2);
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(hBrush);
+    DeleteObject(hPen);
+}
+
+void DrawPrevIconVector(HDC hdc, int cx, int cy, int size, COLORREF color) {
+    HBRUSH hBrush = CreateSolidBrush(color);
+    HPEN hPen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+
+    int h = (size * 3) / 4;
+
+    // Start Bar
+    RoundRect(hdc, cx - 11, cy - h / 2, cx - 8, cy + h / 2, 2, 2);
+
+    // First Triangle (Leftwards)
+    POINT pts1[3] = {
+        { cx + 2, cy - h / 2 },
+        { cx - 7, cy },
+        { cx + 2, cy + h / 2 }
+    };
+    Polygon(hdc, pts1, 3);
+
+    // Second Triangle (Leftwards)
+    POINT pts2[3] = {
+        { cx + 11, cy - h / 2 },
+        { cx + 2, cy },
+        { cx + 11, cy + h / 2 }
+    };
+    Polygon(hdc, pts2, 3);
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(hBrush);
+    DeleteObject(hPen);
+}
+
+void DrawSpeakerIcon(HDC hdc, int cx, int cy, bool large, COLORREF color) {
+    HBRUSH hBrush = CreateSolidBrush(color);
+    HPEN hPen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+
+    // Box
+    RECT rcBox = { cx - 7, cy - 3, cx - 3, cy + 3 };
+    FillRect(hdc, &rcBox, hBrush);
+
+    // Cone
+    POINT pts[4] = {
+        { cx - 3, cy - 3 },
+        { cx + 2, cy - 7 },
+        { cx + 2, cy + 7 },
+        { cx - 3, cy + 3 }
+    };
+    Polygon(hdc, pts, 4);
+
+    if (large) {
+        HPEN arcPen = CreatePen(PS_SOLID, 2, color);
+        SelectObject(hdc, arcPen);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Arc(hdc, cx + 1, cy - 6, cx + 9, cy + 6, cx + 5, cy - 5, cx + 5, cy + 5);
+        DeleteObject(arcPen);
+    }
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(hBrush);
+    DeleteObject(hPen);
+}
+
 void RenderUI(HDC hdc, int width, int height) {
     // 1. Background
     HBRUSH bgBrush = CreateSolidBrush(RGB(18, 20, 26));
@@ -224,35 +368,27 @@ void RenderUI(HDC hdc, int width, int height) {
     RECT totTimeRect = {width - 100, progY + 10, width - 18, progY + 28};
     DrawText(hdc, FormatTime(g_state.durationMs).c_str(), -1, &totTimeRect, DT_RIGHT);
 
-    // 6. Playback Transport Bar
+    // 6. Playback Transport Bar (Exact iOS 9 Vector Glyphs)
     int ctrlY = 394;
     // Prev Button
     DrawRoundRect(hdc, (width / 2) - 86, ctrlY + 4, 46, 42, 8, RGB(30, 34, 44), RGB(50, 56, 70));
-    SetTextColor(hdc, RGB(255, 255, 255));
-    RECT prevRect = {(width / 2) - 86, ctrlY + 4, (width / 2) - 40, ctrlY + 46};
-    DrawText(hdc, L"|◀◀", -1, &prevRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawPrevIconVector(hdc, (width / 2) - 63, ctrlY + 25, 20, RGB(255, 255, 255));
 
     // Play/Pause Big Gold Button
     DrawRoundRect(hdc, (width - 60) / 2, ctrlY, 60, 50, 25, RGB(220, 185, 80), RGB(240, 205, 100));
-    SetTextColor(hdc, RGB(18, 20, 26));
-    HFONT hFontPlay = CreateFont(22, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
-    SelectObject(hdc, hFontPlay);
-    RECT playRect = {(width - 60) / 2, ctrlY, (width + 60) / 2, ctrlY + 50};
-    DrawText(hdc, g_state.isPlaying ? L"❚❚" : L"▶", -1, &playRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    DeleteObject(hFontPlay);
+    if (g_state.isPlaying) {
+        DrawPauseIconVector(hdc, width / 2, ctrlY + 25, 18, RGB(18, 20, 26));
+    } else {
+        DrawPlayIconVector(hdc, width / 2, ctrlY + 25, 20, RGB(18, 20, 26));
+    }
 
     // Next Button
-    SelectObject(hdc, hFontSmall);
     DrawRoundRect(hdc, (width / 2) + 40, ctrlY + 4, 46, 42, 8, RGB(30, 34, 44), RGB(50, 56, 70));
-    SetTextColor(hdc, RGB(255, 255, 255));
-    RECT nextRect = {(width / 2) + 40, ctrlY + 4, (width / 2) + 86, ctrlY + 46};
-    DrawText(hdc, L"▶▶|", -1, &nextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawNextIconVector(hdc, (width / 2) + 63, ctrlY + 25, 20, RGB(255, 255, 255));
 
-    // 7. Volume Slider
+    // 7. Volume Slider with iOS Style Speaker Glyphs
     int volY = 468;
-    SetTextColor(hdc, RGB(150, 160, 175));
-    RECT volMinRect = {18, volY - 2, 36, volY + 16};
-    DrawText(hdc, L"🔈", -1, &volMinRect, DT_LEFT);
+    DrawSpeakerIcon(hdc, 26, volY + 7, false, RGB(140, 150, 165));
 
     int volBarX = 46;
     int volBarW = width - 92;
@@ -260,8 +396,7 @@ void RenderUI(HDC hdc, int width, int height) {
     int volFillW = static_cast<int>(g_state.volume * volBarW);
     DrawRoundRect(hdc, volBarX, volY + 4, volFillW, 6, 3, RGB(90, 170, 250), RGB(90, 170, 250));
 
-    RECT volMaxRect = {width - 38, volY - 2, width - 16, volY + 16};
-    DrawText(hdc, L"🔊", -1, &volMaxRect, DT_RIGHT);
+    DrawSpeakerIcon(hdc, width - 24, volY + 7, true, RGB(140, 150, 165));
 
     // 8. Sync Delay Panel
     int delayY = 512;
@@ -293,7 +428,7 @@ void RenderUI(HDC hdc, int width, int height) {
     // 9. Bottom Status Hint
     SetTextColor(hdc, RGB(100, 110, 125));
     RECT hintRect = {0, height - 38, width, height - 12};
-    DrawText(hdc, L"Sendspin Universal Client · Windows Test Edition", -1, &hintRect, DT_CENTER | DT_SINGLELINE);
+    DrawText(hdc, L"Sendspin Universal Client · iOS 9 Hi-Fi Engine", -1, &hintRect, DT_CENTER | DT_SINGLELINE);
 
     SelectObject(hdc, oldFont);
     DeleteObject(hFontSmall);
@@ -459,7 +594,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     g_hWnd = CreateWindowEx(
         0,
         wc.lpszClassName,
-        L"Sendspin Player (Windows UI Test Edition)",
+        L"Sendspin Player (iOS 9 Hi-Fi Edition)",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT,
         rc.right - rc.left, rc.bottom - rc.top,
