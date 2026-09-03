@@ -343,7 +343,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b116)";
+    versionBadge.text = @"Sendspin v1.0.1 (b117)";
     [self.view addSubview:versionBadge];
 }
 
@@ -534,9 +534,15 @@
         uint32_t progress = bridge.currentProgressMs;
         if (progress > dur) progress = dur;
         float val = (float)progress / (float)dur;
+        if (val < 0.0f) val = 0.0f;
+        if (val > 1.0f) val = 1.0f;
         [_progressSlider setValue:val animated:NO];
         _currentTimeLabel.text = [self formatTimeMs:progress];
         _totalTimeLabel.text = [self formatTimeMs:dur];
+    } else {
+        [_progressSlider setValue:0.0f animated:NO];
+        _currentTimeLabel.text = @"0:00";
+        _totalTimeLabel.text = @"0:00";
     }
 }
 

@@ -982,6 +982,14 @@ private:
 }
 
 - (void)play {
+    self.playbackState = SendspinPlaybackStatePlaying;
+    _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
+            [self.delegate sendspinPlaybackStateChanged:SendspinPlaybackStatePlaying];
+        }
+    });
+
     if (self.connectionState != SendspinConnectionStateConnected && self.connectionState != SendspinConnectionStateSynchronized) {
         NSString *targetHost = _savedServerHost.length > 0 ? _savedServerHost : @"192.168.1.152";
         uint16_t targetPort = _savedServerPort > 0 ? _savedServerPort : 8927;
@@ -1000,6 +1008,17 @@ private:
 }
 
 - (void)pause {
+    uint32_t currentPos = [self currentProgressMs];
+    self.playbackState = SendspinPlaybackStatePaused;
+    [self updateProgressAnchor:currentPos];
+    _progressAnchorTime = 0;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
+            [self.delegate sendspinPlaybackStateChanged:SendspinPlaybackStatePaused];
+        }
+    });
+    
     if (_controllerRole) {
         _controllerRole->send_command({.command = sendspin::SendspinControllerCommand::PAUSE});
     }
