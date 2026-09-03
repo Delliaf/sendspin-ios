@@ -495,47 +495,58 @@ public:
     AppArtworkListener(SendspinBridge *bridge) : bridge_(bridge) {}
 
     void on_image_decode(uint8_t slot, const uint8_t* data, size_t length, sendspin::SendspinImageFormat format) override {
-        (void)slot;
         (void)format;
         if (!data || length == 0) return;
 
         NSData *nsData = [NSData dataWithBytes:data length:length];
         UIImage *image = [UIImage imageWithData:nsData];
         if (image) {
-            decodedImage_ = image;
+            std::lock_guard<std::mutex> lock(imageMutex_);
+            slotImages_[slot] = image;
         }
     }
 
     void on_image_display(uint8_t slot, uint32_t lateness_ms) override {
-        (void)slot;
         (void)lateness_ms;
-        if (decodedImage_) {
-            UIImage *img = decodedImage_;
+        UIImage *img = nil;
+        {
+            std::lock_guard<std::mutex> lock(imageMutex_);
+            auto it = slotImages_.find(slot);
+            if (it != slotImages_.end()) {
+                img = it->second;
+            }
+        }
+        if (img) {
+            __weak SendspinBridge *b = bridge_;
             dispatch_async(dispatch_get_main_queue(), ^{
-                bridge_.currentArtwork = img;
-                if ([bridge_.delegate respondsToSelector:@selector(sendspinArtworkUpdated:)]) {
-                    [bridge_.delegate sendspinArtworkUpdated:img];
+                b.currentArtwork = img;
+                if ([b.delegate respondsToSelector:@selector(sendspinArtworkUpdated:)]) {
+                    [b.delegate sendspinArtworkUpdated:img];
                 }
-                [bridge_ updateSystemNowPlayingInfo];
+                [b updateSystemNowPlayingInfo];
             });
         }
     }
 
     void on_image_clear(uint8_t slot) override {
-        (void)slot;
-        decodedImage_ = nil;
+        {
+            std::lock_guard<std::mutex> lock(imageMutex_);
+            slotImages_.erase(slot);
+        }
+        __weak SendspinBridge *b = bridge_;
         dispatch_async(dispatch_get_main_queue(), ^{
-            bridge_.currentArtwork = nil;
-            if ([bridge_.delegate respondsToSelector:@selector(sendspinArtworkUpdated:)]) {
-                [bridge_.delegate sendspinArtworkUpdated:nil];
+            b.currentArtwork = nil;
+            if ([b.delegate respondsToSelector:@selector(sendspinArtworkUpdated:)]) {
+                [b.delegate sendspinArtworkUpdated:nil];
             }
-            [bridge_ updateSystemNowPlayingInfo];
+            [b updateSystemNowPlayingInfo];
         });
     }
 
 private:
     __weak SendspinBridge *bridge_;
-    UIImage *decodedImage_{nil};
+    std::mutex imageMutex_;
+    std::map<uint8_t, UIImage *> slotImages_;
 };
 
 @implementation SendspinBridge {
@@ -657,8 +668,10 @@ private:
 
             sendspin::ArtworkRoleConfig artwork_config;
             artwork_config.preferred_formats = {
-                {sendspin::SendspinImageSource::ALBUM, sendspin::SendspinImageFormat::JPEG, 300, 300},
-                {sendspin::SendspinImageSource::ALBUM, sendspin::SendspinImageFormat::PNG, 300, 300}
+                {sendspin::SendspinImageSource::ALBUM, sendspin::SendspinImageFormat::JPEG, 500, 500},
+                {sendspin::SendspinImageSource::ALBUM, sendspin::SendspinImageFormat::PNG, 500, 500},
+                {sendspin::SendspinImageSource::ARTIST, sendspin::SendspinImageFormat::JPEG, 500, 500},
+                {sendspin::SendspinImageSource::ARTIST, sendspin::SendspinImageFormat::PNG, 500, 500}
             };
             self->_artworkRole = &self->_client->add_artwork(std::move(artwork_config));
             self->_artworkListener = std::make_unique<AppArtworkListener>(self);
@@ -895,6 +908,18 @@ private:
 }
 
 - (void)play {
+    if (self.connectionState != SendspinConnectionStateConnected && self.connectionState != SendspinConnectionStateSynchronized) {
+        NSString *targetHost = _savedServerHost.length > 0 ? _savedServerHost : @"192.168.1.152";
+        uint16_t targetPort = _savedServerPort > 0 ? _savedServerPort : 8927;
+        NSLog(@"[SendspinBridge] Auto-reconnecting to %@:%u before play command", targetHost, targetPort);
+        [self connectToRemoteServer:targetHost port:targetPort name:_savedServerName ?: @"Music Assistant" remember:NO];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (self->_controllerRole) {
+                self->_controllerRole->send_command({.command = sendspin::SendspinControllerCommand::PLAY});
+            }
+        });
+        return;
+    }
     if (_controllerRole) {
         _controllerRole->send_command({.command = sendspin::SendspinControllerCommand::PLAY});
     }

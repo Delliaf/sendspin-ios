@@ -209,8 +209,9 @@
     _progressSlider.maximumValue = 1.0;
     _progressSlider.value = 0.0;
     _progressSlider.tintColor = [UIColor colorWithRed:0.85 green:0.75 blue:0.45 alpha:1.0];
+    [_progressSlider addTarget:self action:@selector(onProgressSliderTouchDown:) forControlEvents:UIControlEventTouchDown];
     [_progressSlider addTarget:self action:@selector(onProgressSliderChanged:) forControlEvents:UIControlEventValueChanged];
-    [_progressSlider addTarget:self action:@selector(onProgressSliderTouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
+    [_progressSlider addTarget:self action:@selector(onProgressSliderTouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     [self.view addSubview:_progressSlider];
     
     _currentTimeLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, progressY + 18, 60, 14)];
@@ -342,7 +343,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b112)";
+    versionBadge.text = @"Sendspin v1.0.1 (b114)";
     [self.view addSubview:versionBadge];
 }
 
@@ -533,7 +534,8 @@
             progress += static_cast<uint32_t>(delta * 1000.0);
             if (progress > bridge.currentDurationMs) progress = bridge.currentDurationMs;
         }
-        _progressSlider.value = (float)progress / (float)bridge.currentDurationMs;
+        float val = (float)progress / (float)bridge.currentDurationMs;
+        [_progressSlider setValue:val animated:NO];
         _currentTimeLabel.text = [self formatTimeMs:progress];
         _totalTimeLabel.text = [self formatTimeMs:bridge.currentDurationMs];
     }
@@ -622,20 +624,30 @@
     [[SendspinBridge sharedInstance] setVolume:slider.value];
 }
 
+- (void)onProgressSliderTouchDown:(UISlider *)slider {
+    _isUserScrubbing = YES;
+}
+
 - (void)onProgressSliderChanged:(UISlider *)slider {
     _isUserScrubbing = YES;
     uint32_t dur = [SendspinBridge sharedInstance].currentDurationMs;
-    uint32_t targetMs = static_cast<uint32_t>(slider.value * dur);
-    _currentTimeLabel.text = [self formatTimeMs:targetMs];
+    if (dur > 0) {
+        uint32_t targetMs = static_cast<uint32_t>(slider.value * dur);
+        _currentTimeLabel.text = [self formatTimeMs:targetMs];
+    }
 }
 
 - (void)onProgressSliderTouchUp:(UISlider *)slider {
-    _isUserScrubbing = NO;
     uint32_t dur = [SendspinBridge sharedInstance].currentDurationMs;
-    uint32_t targetMs = static_cast<uint32_t>(slider.value * dur);
-    _baseProgressMs = targetMs;
-    _lastMetadataTimestamp = [NSDate timeIntervalSinceReferenceDate];
-    [[SendspinBridge sharedInstance] seekToMs:targetMs];
+    if (dur > 0) {
+        uint32_t targetMs = static_cast<uint32_t>(slider.value * dur);
+        _baseProgressMs = targetMs;
+        _lastMetadataTimestamp = [NSDate timeIntervalSinceReferenceDate];
+        [[SendspinBridge sharedInstance] seekToMs:targetMs];
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        self->_isUserScrubbing = NO;
+    });
 }
 
 - (void)onDelayMinus10 {

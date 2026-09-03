@@ -39,11 +39,13 @@
     BOOL keepAlive = [[NSUserDefaults standardUserDefaults] boolForKey:@"SendspinBackgroundKeepAlive"];
     [AudioEngine sharedInstance].keepAliveEnabled = keepAlive;
 
-    // Setup Audio Session for background playback
-    [[AudioEngine sharedInstance] setupAudioSessionWithError:nil];
-    if (keepAlive) {
-        [[AudioEngine sharedInstance] start];
-    }
+    // Setup Audio Session for background playback asynchronously so app opens instantly
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[AudioEngine sharedInstance] setupAudioSessionWithError:nil];
+        if (keepAlive) {
+            [[AudioEngine sharedInstance] start];
+        }
+    });
 
     return YES;
 }
