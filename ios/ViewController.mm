@@ -340,7 +340,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b106)";
+    versionBadge.text = @"Sendspin v1.0.1 (b107)";
     [self.view addSubview:versionBadge];
 }
 
@@ -662,105 +662,13 @@
 }
 
 - (void)showServerDialog {
-    if (self.presentedViewController) {
-        [self dismissViewControllerAnimated:NO completion:^{
-            [self showServerDialog];
-        }];
-        return;
-    }
+    SettingsViewController *settingsVC = [[SettingsViewController alloc] init];
+    settingsVC.delegate = self;
+    [self presentViewController:settingsVC animated:YES completion:nil];
+}
 
-    SendspinBridge *bridge = [SendspinBridge sharedInstance];
-
-    if (NSClassFromString(@"UIAlertController")) {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Sendspin Servers & Settings"
-                                                                       message:@"Select an available server or manage options:"
-                                                                preferredStyle:UIAlertControllerStyleActionSheet];
-
-        UIAlertAction *rescanAction = [UIAlertAction actionWithTitle:@"🔄 Rescan Local Network" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [bridge rescanBonjourServers];
-            self->_statusLabel.text = @"Scanning network...";
-        }];
-        [alert addAction:rescanAction];
-
-        NSArray *servers = bridge.discoveredServers;
-        if (servers.count > 0) {
-            for (NSDictionary *server in servers) {
-                NSString *host = server[@"host"];
-                uint16_t port = [server[@"port"] unsignedShortValue];
-                NSString *name = server[@"name"];
-                BOOL isConn = [bridge.connectedServerAddress isEqualToString:[NSString stringWithFormat:@"%@:%u", host, port]];
-                
-                NSString *title = [NSString stringWithFormat:@"%@ %@ (%@:%u)", isConn ? @"● Connected:" : @"▶ Connect:", name, host, port];
-                UIAlertAction *serverAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                    [self promptConnectChoiceForServer:server];
-                }];
-                [alert addAction:serverAction];
-            }
-        }
-
-        if (bridge.savedServerHost && bridge.savedServerHost.length > 0) {
-            NSString *savedTitle = [NSString stringWithFormat:@"★ Saved: %@ (%@:%u)", bridge.savedServerName ?: @"Server", bridge.savedServerHost, bridge.savedServerPort];
-            UIAlertAction *savedAction = [UIAlertAction actionWithTitle:savedTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                [bridge connectToRemoteServer:bridge.savedServerHost port:bridge.savedServerPort name:bridge.savedServerName remember:NO];
-            }];
-            [alert addAction:savedAction];
-
-            UIAlertAction *forgetAction = [UIAlertAction actionWithTitle:@"❌ Forget Saved Server" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-                [bridge forgetSavedServer];
-            }];
-            [alert addAction:forgetAction];
-        }
-
-        UIAlertAction *manualAction = [UIAlertAction actionWithTitle:@"➕ Manual Connect..." style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [self showManualConnectAlert];
-        }];
-        [alert addAction:manualAction];
-
-        if (bridge.connectionState == SendspinConnectionStateConnected || bridge.connectionState == SendspinConnectionStateSynchronized) {
-            UIAlertAction *discAction = [UIAlertAction actionWithTitle:@"Disconnect" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-                [bridge disconnect];
-            }];
-            [alert addAction:discAction];
-        }
-
-        UIAlertAction *nameAction = [UIAlertAction actionWithTitle:@"✏ Change Player Name..." style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [self showPlayerNameAlert];
-        }];
-        [alert addAction:nameAction];
-        
-        BOOL keepAwake = [[NSUserDefaults standardUserDefaults] boolForKey:@"SendspinKeepScreenAwake"];
-        NSString *awakeTitle = keepAwake ? @"Screen Awake: ON (Tap to Disable)" : @"Screen Awake: OFF (Tap to Enable)";
-        UIAlertAction *awakeAction = [UIAlertAction actionWithTitle:awakeTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            BOOL newVal = !keepAwake;
-            [[NSUserDefaults standardUserDefaults] setBool:newVal forKey:@"SendspinKeepScreenAwake"];
-            [[NSUserDefaults standardUserDefaults] synchronize];
-            [UIApplication sharedApplication].idleTimerDisabled = newVal;
-        }];
-        [alert addAction:awakeAction];
-
-        BOOL keepAlive = [[NSUserDefaults standardUserDefaults] boolForKey:@"SendspinBackgroundKeepAlive"];
-        NSString *keepAliveTitle = keepAlive ? @"Background Hold: ON (Prevent Unload)" : @"Background Hold: OFF (Allow Sleep)";
-        UIAlertAction *keepAliveAction = [UIAlertAction actionWithTitle:keepAliveTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            BOOL newVal = !keepAlive;
-            [[NSUserDefaults standardUserDefaults] setBool:newVal forKey:@"SendspinBackgroundKeepAlive"];
-            [[NSUserDefaults standardUserDefaults] synchronize];
-            [AudioEngine sharedInstance].keepAliveEnabled = newVal;
-        }];
-        [alert addAction:keepAliveAction];
-
-        UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
-        [alert addAction:cancelAction];
-        
-        [self presentViewController:alert animated:YES completion:nil];
-    } else {
-        // Fallback for iOS 3.0 - 7.1 (UIActionSheet)
-        UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:@"Sendspin Settings"
-                                                           delegate:self
-                                                  cancelButtonTitle:@"Cancel"
-                                             destructiveButtonTitle:nil
-                                                  otherButtonTitles:@"Rescan Network", @"Manual Connect...", @"Change Player Name...", nil];
-        [sheet showInView:self.view];
-    }
+- (void)settingsDidRequestDismiss {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)promptConnectChoiceForServer:(NSDictionary *)server {

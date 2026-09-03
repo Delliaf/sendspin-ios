@@ -53,6 +53,7 @@ echo "=== Compiling iOS App Objective-C/C++ sources ==="
 $CC -c $INCLUDES $DEFINES $SRC_DIR/ios/main.m -o $BUILD_DIR/obj/main.o
 $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/AppDelegate.mm -o $BUILD_DIR/obj/AppDelegate.o
 $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/ViewController.mm -o $BUILD_DIR/obj/ViewController.o
+$CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/SettingsViewController.mm -o $BUILD_DIR/obj/SettingsViewController.o
 $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/AudioEngine.mm -o $BUILD_DIR/obj/AudioEngine.o
 $CXX -c $INCLUDES $DEFINES $SRC_DIR/ios/SendspinBridge.mm -o $BUILD_DIR/obj/SendspinBridge.o
 
@@ -134,7 +135,7 @@ echo "=== Linking Sendspin Binary ==="
     -L /tmp/stubs/usr/lib \
     -o $BUILD_DIR/Payload/Sendspin.app/Sendspin \
     $BUILD_DIR/obj/main.o $BUILD_DIR/obj/AppDelegate.o $BUILD_DIR/obj/ViewController.o \
-    $BUILD_DIR/obj/AudioEngine.o $BUILD_DIR/obj/SendspinBridge.o $BUILD_DIR/obj/shim.o \
+    $BUILD_DIR/obj/SettingsViewController.o $BUILD_DIR/obj/AudioEngine.o $BUILD_DIR/obj/SendspinBridge.o $BUILD_DIR/obj/shim.o \
     $BUILD_DIR/libsendspin_engine.a \
     -framework Foundation -framework UIKit -framework CoreGraphics \
     -framework AudioToolbox -framework AVFoundation -framework MediaPlayer \

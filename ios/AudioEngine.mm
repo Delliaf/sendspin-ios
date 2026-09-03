@@ -26,7 +26,7 @@ static inline uint64_t mach_to_microseconds(uint64_t mach_time) {
 class LockFreeAudioRingBuffer {
 public:
     LockFreeAudioRingBuffer(size_t capacity = 1048576) // 1MB buffer (power of 2)
-        : buffer_(capacity), capacity_(capacity), mask_(capacity - 1), write_pos_(0), read_pos_(0) {}
+        : buffer_(capacity), capacity_(capacity), mask_(capacity - 1), write_pos_(0), read_pos_(0), primed_(false) {}
 
     size_t write(const uint8_t* data, size_t length) {
         if (!data || length == 0) return 0;
@@ -47,16 +47,29 @@ public:
         }
 
         write_pos_.store(current_write + to_write, std::memory_order_release);
+        
+        if (!primed_.load(std::memory_order_relaxed) && (current_write + to_write - current_read) >= 14112) { // ~80ms jitter buffer
+            primed_.store(true, std::memory_order_release);
+        }
         return to_write;
     }
 
     size_t read(uint8_t* out_data, size_t length) {
         if (!out_data || length == 0) return 0;
 
+        if (!primed_.load(std::memory_order_acquire)) {
+            return 0; // Wait for initial jitter buffer priming
+        }
+
         const size_t current_write = write_pos_.load(std::memory_order_acquire);
         const size_t current_read = read_pos_.load(std::memory_order_relaxed);
 
         const size_t available = current_write - current_read;
+        if (available == 0) {
+            primed_.store(false, std::memory_order_release);
+            return 0;
+        }
+
         const size_t to_read = std::min(length, available);
         if (to_read == 0) return 0;
 
@@ -73,6 +86,7 @@ public:
     }
 
     void clear() {
+        primed_.store(false, std::memory_order_relaxed);
         read_pos_.store(write_pos_.load(std::memory_order_relaxed), std::memory_order_release);
     }
 
@@ -86,6 +100,7 @@ private:
     size_t mask_;
     alignas(64) std::atomic<size_t> write_pos_;
     alignas(64) std::atomic<size_t> read_pos_;
+    std::atomic<bool> primed_;
 };
 
 @interface AudioEngine () {
@@ -209,7 +224,7 @@ static OSStatus CoreAudioRenderCallback(
             [session setPreferredSampleRate:48000.0 error:nil];
         }
         if ([session respondsToSelector:@selector(setPreferredIOBufferDuration:error:)]) {
-            [session setPreferredIOBufferDuration:0.005 error:nil];
+            [session setPreferredIOBufferDuration:0.040 error:nil];
         }
 
         success = [session setActive:YES error:error];
