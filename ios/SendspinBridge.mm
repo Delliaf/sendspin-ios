@@ -604,7 +604,11 @@ private:
 
 - (void)updateProgressAnchor:(uint32_t)progressMs {
     _currentProgressMs = progressMs;
-    _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+    if (self.playbackState == SendspinPlaybackStatePlaying) {
+        _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+    } else {
+        _progressAnchorTime = 0;
+    }
 }
 
 - (uint32_t)currentProgressMs {
@@ -625,7 +629,11 @@ private:
 
 - (void)setCurrentProgressMs:(uint32_t)val {
     _currentProgressMs = val;
-    _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+    if (self.playbackState == SendspinPlaybackStatePlaying) {
+        _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
+    } else {
+        _progressAnchorTime = 0;
+    }
 }
 
 - (void)setCurrentDurationMs:(uint32_t)val {

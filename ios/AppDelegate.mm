@@ -55,30 +55,48 @@
     if (NSClassFromString(@"MPRemoteCommandCenter")) {
         MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
 
+        commandCenter.playCommand.enabled = YES;
         [commandCenter.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
             [[SendspinBridge sharedInstance] play];
             return MPRemoteCommandHandlerStatusSuccess;
         }];
 
+        commandCenter.pauseCommand.enabled = YES;
         [commandCenter.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
             [[SendspinBridge sharedInstance] pause];
             return MPRemoteCommandHandlerStatusSuccess;
         }];
 
+        commandCenter.togglePlayPauseCommand.enabled = YES;
         [commandCenter.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
             [[SendspinBridge sharedInstance] togglePlayPause];
             return MPRemoteCommandHandlerStatusSuccess;
         }];
 
+        commandCenter.nextTrackCommand.enabled = YES;
         [commandCenter.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
             [[SendspinBridge sharedInstance] nextTrack];
             return MPRemoteCommandHandlerStatusSuccess;
         }];
 
+        commandCenter.previousTrackCommand.enabled = YES;
         [commandCenter.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
             [[SendspinBridge sharedInstance] previousTrack];
             return MPRemoteCommandHandlerStatusSuccess;
         }];
+
+        if ([commandCenter respondsToSelector:@selector(changePlaybackPositionCommand)]) {
+            [commandCenter.changePlaybackPositionCommand setEnabled:YES];
+            [commandCenter.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent * _Nonnull event) {
+                if ([event isKindOfClass:NSClassFromString(@"MPChangePlaybackPositionCommandEvent")]) {
+                    MPChangePlaybackPositionCommandEvent *posEvent = (MPChangePlaybackPositionCommandEvent *)event;
+                    uint32_t posMs = (uint32_t)(posEvent.positionTime * 1000.0);
+                    [[SendspinBridge sharedInstance] seekToMs:posMs];
+                    return MPRemoteCommandHandlerStatusSuccess;
+                }
+                return MPRemoteCommandHandlerStatusCommandFailed;
+            }];
+        }
     }
 
     // 2. Legacy iOS 4.0 - 7.0 remote control events registration
