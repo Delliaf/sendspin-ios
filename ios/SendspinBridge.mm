@@ -43,168 +43,17 @@ struct ServiceKey {
     }
 };
 
-class NativeMdnsBrowser;
-
-struct ResolveContext {
-    NativeMdnsBrowser* browser{nullptr};
-    ServiceKey key;
-    std::string name;
-    uint16_t port{0};
-    std::string path;
-};
-
-class NativeMdnsBrowser {
-public:
-    NativeMdnsBrowser(SendspinBridge *bridge) : bridge_(bridge) {
-        queue_ = dispatch_queue_create("com.sendspin.mdns.browser", DISPATCH_QUEUE_SERIAL);
-    }
-
-    ~NativeMdnsBrowser() {
-        stop();
-    }
-
-    bool start() {
-        stop();
-        {
-            std::lock_guard<std::mutex> lock(servers_mutex_);
-            servers_.clear();
-        }
-
-        DNSServiceErrorType err1 = DNSServiceBrowse(
-            &browse_ref_sendspin_, 0, 0, "_sendspin._tcp", nullptr, browse_callback, this);
-        if (err1 == kDNSServiceErr_NoError && browse_ref_sendspin_) {
-            DNSServiceSetDispatchQueue(browse_ref_sendspin_, queue_);
-        } else {
-            NSLog(@"[NativeMdnsBrowser] Failed to browse _sendspin._tcp: %d", err1);
-        }
-
-        DNSServiceErrorType err2 = DNSServiceBrowse(
-            &browse_ref_ma_, 0, 0, "_music-assistant._tcp", nullptr, browse_callback, this);
-        if (err2 == kDNSServiceErr_NoError && browse_ref_ma_) {
-            DNSServiceSetDispatchQueue(browse_ref_ma_, queue_);
-        } else {
-            NSLog(@"[NativeMdnsBrowser] Failed to browse _music-assistant._tcp: %d", err2);
-        }
-
-        NSLog(@"[NativeMdnsBrowser] DNS-SD browser active (Background Queue mode)");
-        return true;
-    }
-
-    void stop() {
-        if (browse_ref_sendspin_ != nullptr) {
-            DNSServiceSetDispatchQueue(browse_ref_sendspin_, NULL);
-            DNSServiceRefDeallocate(browse_ref_sendspin_);
-            browse_ref_sendspin_ = nullptr;
-        }
-        if (browse_ref_ma_ != nullptr) {
-            DNSServiceSetDispatchQueue(browse_ref_ma_, NULL);
-            DNSServiceRefDeallocate(browse_ref_ma_);
-            browse_ref_ma_ = nullptr;
-        }
-    }
-
-    std::vector<DiscoveredServerInfo> get_servers() const {
-        std::lock_guard<std::mutex> lock(servers_mutex_);
-        std::vector<DiscoveredServerInfo> result;
-        result.reserve(servers_.size());
-        for (const auto& kv : servers_) {
-            result.push_back(kv.second);
-        }
-        return result;
-    }
-
-private:
-    static void DNSSD_API browse_callback(DNSServiceRef /*ref*/, DNSServiceFlags flags,
-                                           uint32_t interface_index, DNSServiceErrorType error,
-                                           const char* name, const char* regtype,
-                                           const char* domain, void* context) {
-        if (error != kDNSServiceErr_NoError) return;
-        auto* browser = static_cast<NativeMdnsBrowser*>(context);
-
-        ServiceKey key{name ? name : "", regtype ? regtype : "", domain ? domain : ""};
-
-        if (flags & kDNSServiceFlagsAdd) {
-            auto* ctx = new ResolveContext{browser, key, name ? name : "", 0, ""};
-            DNSServiceRef resolve_ref = nullptr;
-            DNSServiceErrorType err = DNSServiceResolve(
-                &resolve_ref, 0, interface_index, name, regtype, domain, resolve_callback, ctx);
-            if (err == kDNSServiceErr_NoError && resolve_ref) {
-                DNSServiceSetDispatchQueue(resolve_ref, browser->queue_);
-            } else {
-                delete ctx;
-            }
-        } else {
-            std::lock_guard<std::mutex> lock(browser->servers_mutex_);
-            browser->servers_.erase(key);
-            browser->notify_bridge();
-        }
-    }
-
-    static void DNSSD_API resolve_callback(DNSServiceRef ref, DNSServiceFlags /*flags*/,
-                                            uint32_t /*interface_index*/, DNSServiceErrorType error,
-                                            const char* /*fullname*/, const char* hosttarget,
-                                            uint16_t port, uint16_t txt_len,
-                                            const unsigned char* txt_record, void* context) {
-        auto* ctx = static_cast<ResolveContext*>(context);
-
-        if (error != kDNSServiceErr_NoError || !hosttarget) {
-            DNSServiceSetDispatchQueue(ref, NULL);
-            DNSServiceRefDeallocate(ref);
-            delete ctx;
-            return;
-        }
-
-        ctx->port = ntohs(port);
-
-        uint8_t path_len = 0;
-        const void* path_val = TXTRecordGetValuePtr(txt_len, txt_record, "path", &path_len);
-        if (path_val != nullptr && path_len > 0) {
-            ctx->path = std::string(static_cast<const char*>(path_val), path_len);
-        }
-
-        DNSServiceSetDispatchQueue(ref, NULL);
-        DNSServiceRefDeallocate(ref);
-
-        std::thread([ctx, host = std::string(hosttarget)]() {
-            struct addrinfo hints {};
-            hints.ai_family = AF_INET;
-            hints.ai_socktype = SOCK_STREAM;
-
-            struct addrinfo* res = nullptr;
-            if (getaddrinfo(host.c_str(), nullptr, &hints, &res) == 0 && res != nullptr) {
-                char addr_str[INET_ADDRSTRLEN] = {};
-                const auto* addr_in = reinterpret_cast<const struct sockaddr_in*>(res->ai_addr);
-                inet_ntop(AF_INET, &addr_in->sin_addr, addr_str, sizeof(addr_str));
-                freeaddrinfo(res);
-
-                if (addr_str[0] != '\0') {
-                    DiscoveredServerInfo server;
-                    server.name = ctx->name;
-                    server.host = addr_str;
-                    server.port = ctx->port;
-                    server.path = ctx->path;
-
-                    std::lock_guard<std::mutex> lock(ctx->browser->servers_mutex_);
-                    ctx->browser->servers_[ctx->key] = std::move(server);
-                    ctx->browser->notify_bridge();
-                }
-            } else if (res != nullptr) {
-                freeaddrinfo(res);
-            }
-            delete ctx;
-        }).detach();
-    }
-
-    void notify_bridge();
-
-    __weak SendspinBridge *bridge_{nil};
-    dispatch_queue_t queue_{nullptr};
-    DNSServiceRef browse_ref_sendspin_{nullptr};
-    DNSServiceRef browse_ref_ma_{nullptr};
-
-    mutable std::mutex servers_mutex_;
-    std::map<ServiceKey, DiscoveredServerInfo> servers_;
-};
+@interface SendspinBonjourBrowser : NSObject <NSNetServiceBrowserDelegate, NSNetServiceDelegate> {
+    NSNetServiceBrowser *_browserSendspin;
+    NSNetServiceBrowser *_browserMA;
+    NSMutableArray<NSNetService *> *_resolvingServices;
+    NSMutableDictionary<NSString *, NSDictionary *> *_discoveredMap;
+}
+@property (nonatomic, weak) SendspinBridge *bridge;
+- (instancetype)initWithBridge:(SendspinBridge *)bridge;
+- (void)start;
+- (void)stop;
+@end
 
 @interface SendspinBridge () {
 @public
@@ -217,7 +66,7 @@ private:
     std::atomic<bool> _shouldRun;
     
     DNSServiceRef _registerRef;
-    std::unique_ptr<NativeMdnsBrowser> _mdnsBrowser;
+    SendspinBonjourBrowser *_bonjourBrowser;
     NSMutableArray<NSDictionary *> *_discoveredServersInternal;
     NSMutableSet<NSString *> *_promptedServers;
 }
@@ -244,34 +93,118 @@ private:
 
 @end
 
-void NativeMdnsBrowser::notify_bridge() {
-    if (!bridge_) return;
+@implementation SendspinBonjourBrowser
 
-    auto list = get_servers();
-    NSMutableArray<NSDictionary *> *nsList = [NSMutableArray array];
-    NSString *localPlayerName = bridge_.playerName;
-    uint16_t localPort = bridge_.listeningPort;
-
-    for (const auto& s : list) {
-        NSString *sName = [NSString stringWithUTF8String:s.name.c_str()];
-        NSString *sHost = [NSString stringWithUTF8String:s.host.c_str()];
-
-        if (s.port == localPort && [sName isEqualToString:localPlayerName]) {
-            continue;
-        }
-
-        [nsList addObject:@{
-            @"name": sName ?: @"Music Assistant",
-            @"host": sHost ?: @"",
-            @"port": @(s.port),
-            @"path": [NSString stringWithUTF8String:s.path.c_str()] ?: @"/sendspin"
-        }];
+- (instancetype)initWithBridge:(SendspinBridge *)bridge {
+    if (self = [super init]) {
+        _bridge = bridge;
+        _resolvingServices = [NSMutableArray array];
+        _discoveredMap = [NSMutableDictionary dictionary];
     }
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [bridge_ handleDiscoveredServers:nsList];
-    });
+    return self;
 }
+
+- (void)start {
+    [self stop];
+    [_discoveredMap removeAllObjects];
+    
+    _browserSendspin = [[NSNetServiceBrowser alloc] init];
+    _browserSendspin.delegate = self;
+    [_browserSendspin searchForServicesOfType:@"_sendspin._tcp." inDomain:@""];
+    
+    _browserMA = [[NSNetServiceBrowser alloc] init];
+    _browserMA.delegate = self;
+    [_browserMA searchForServicesOfType:@"_music-assistant._tcp." inDomain:@""];
+    
+    NSLog(@"[BonjourBrowser] Native Cocoa NSNetServiceBrowser active");
+}
+
+- (void)stop {
+    if (_browserSendspin) {
+        [_browserSendspin stop];
+        _browserSendspin.delegate = nil;
+        _browserSendspin = nil;
+    }
+    if (_browserMA) {
+        [_browserMA stop];
+        _browserMA.delegate = nil;
+        _browserMA = nil;
+    }
+    for (NSNetService *s in _resolvingServices) {
+        [s stop];
+        s.delegate = nil;
+    }
+    [_resolvingServices removeAllObjects];
+}
+
+#pragma mark - NSNetServiceBrowserDelegate
+
+- (void)netServiceBrowser:(NSNetServiceBrowser *)browser didFindService:(NSNetService *)service moreComing:(BOOL)moreComing {
+    NSLog(@"[BonjourBrowser] Discovered service: %@ (type: %@)", service.name, service.type);
+    service.delegate = self;
+    [_resolvingServices addObject:service];
+    [service resolveWithTimeout:5.0];
+}
+
+- (void)netServiceBrowser:(NSNetServiceBrowser *)browser didRemoveService:(NSNetService *)service moreComing:(BOOL)moreComing {
+    NSLog(@"[BonjourBrowser] Removed service: %@", service.name);
+    NSString *key = [NSString stringWithFormat:@"%@_%@", service.type, service.name];
+    [_discoveredMap removeObjectForKey:key];
+    [self notifyBridge];
+}
+
+#pragma mark - NSNetServiceDelegate
+
+- (void)netServiceDidResolveAddress:(NSNetService *)service {
+    NSString *host = nil;
+    for (NSData *address in service.addresses) {
+        struct sockaddr_in *socketAddress = (struct sockaddr_in *)[address bytes];
+        if (socketAddress && socketAddress->sin_family == AF_INET) {
+            char ipStr[INET_ADDRSTRLEN];
+            if (inet_ntop(AF_INET, &(socketAddress->sin_addr), ipStr, sizeof(ipStr))) {
+                host = [NSString stringWithUTF8String:ipStr];
+                break;
+            }
+        }
+    }
+    
+    if (host.length > 0) {
+        NSInteger port = service.port;
+        NSString *path = @"/sendspin";
+        NSData *txtData = service.TXTRecordData;
+        if (txtData) {
+            NSDictionary *txtDict = [NSNetService dictionaryFromTXTRecordData:txtData];
+            NSData *pathData = txtDict[@"path"];
+            if (pathData) {
+                path = [[NSString alloc] initWithData:pathData encoding:NSUTF8StringEncoding] ?: @"/sendspin";
+            }
+        }
+        
+        NSString *key = [NSString stringWithFormat:@"%@_%@", service.type, service.name];
+        _discoveredMap[key] = @{
+            @"name": service.name ?: @"Music Assistant",
+            @"host": host,
+            @"port": @(port),
+            @"path": path
+        };
+        NSLog(@"[BonjourBrowser] Resolved %@ -> %@:%ld%@", service.name, host, (long)port, path);
+        [self notifyBridge];
+    }
+    [_resolvingServices removeObject:service];
+}
+
+- (void)netService:(NSNetService *)service didNotResolve:(NSDictionary *)errorDict {
+    NSLog(@"[BonjourBrowser] Failed to resolve service %@: %@", service.name, errorDict);
+    [_resolvingServices removeObject:service];
+}
+
+- (void)notifyBridge {
+    if (!_bridge) return;
+    NSArray *servers = [_discoveredMap allValues];
+    [_bridge handleDiscoveredServers:servers];
+}
+
+@end
 
 struct AppNetworkProvider : public sendspin::SendspinNetworkProvider {
     bool is_network_ready() override { return true; }
@@ -744,20 +677,22 @@ private:
 }
 
 - (void)startBonjourDiscovery {
-    if (!_mdnsBrowser) {
-        _mdnsBrowser = std::make_unique<NativeMdnsBrowser>(self);
+    if (!_bonjourBrowser) {
+        _bonjourBrowser = [[SendspinBonjourBrowser alloc] initWithBridge:self];
     }
-    _mdnsBrowser->start();
+    [_bonjourBrowser start];
 }
 
 - (void)stopBonjourDiscovery {
-    if (_mdnsBrowser) {
-        _mdnsBrowser->stop();
+    if (_bonjourBrowser) {
+        [_bonjourBrowser stop];
     }
 }
 
 - (void)handleDiscoveredServers:(NSArray<NSDictionary *> *)servers {
     _discoveredServersInternal = [servers mutableCopy];
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"SendspinDiscoveredServersUpdated" object:nil];
 
     if ([self.delegate respondsToSelector:@selector(sendspinDiscoveredServersUpdated:)]) {
         [self.delegate sendspinDiscoveredServersUpdated:[_discoveredServersInternal copy]];

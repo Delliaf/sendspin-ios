@@ -6,29 +6,29 @@ Codename: sendspin
 Architectures: iphoneos-arm iphoneos-arm64
 Description: Official Cydia repository for Sendspin iOS Player (iOS 3.0 — iOS 9.3+)
 MD5Sum:
- 4e9f0ece550d28f47e7b1117acafbcca 675 Packages
- 4e9f0ece550d28f47e7b1117acafbcca 675 ./Packages
- 8fa5a790c3d79ffe5817524911574886 457 Packages.gz
- 8fa5a790c3d79ffe5817524911574886 457 ./Packages.gz
- cc85e3be424d268f475bec83c3411bfd 500 Packages.bz2
- cc85e3be424d268f475bec83c3411bfd 500 ./Packages.bz2
- 50dcf40385a4bf36effe3c2fd1c7ece3 516 Packages.xz
- 50dcf40385a4bf36effe3c2fd1c7ece3 516 ./Packages.xz
+ 35f17570668357cf84f203105267655b 675 Packages
+ 35f17570668357cf84f203105267655b 675 ./Packages
+ 44942440ce0a159d63a37eae64748fd9 459 Packages.gz
+ 44942440ce0a159d63a37eae64748fd9 459 ./Packages.gz
+ e29487dda7a155726a2ca8c9a1459ac5 501 Packages.bz2
+ e29487dda7a155726a2ca8c9a1459ac5 501 ./Packages.bz2
+ 8cdf8fac2a380f6817388a12b5155d20 516 Packages.xz
+ 8cdf8fac2a380f6817388a12b5155d20 516 ./Packages.xz
 SHA1:
- 6ede438e8e93de0ca294495a4053056b985b12f1 675 Packages
- 6ede438e8e93de0ca294495a4053056b985b12f1 675 ./Packages
- 4d98e2e3171a582c84c5d03cda5f719a64b9bfa6 457 Packages.gz
- 4d98e2e3171a582c84c5d03cda5f719a64b9bfa6 457 ./Packages.gz
- ec10384b0b9804367840980c769fee43f88db83a 500 Packages.bz2
- ec10384b0b9804367840980c769fee43f88db83a 500 ./Packages.bz2
- 6af2a65e3d831de6103aaf90ee535ebc4c7dd224 516 Packages.xz
- 6af2a65e3d831de6103aaf90ee535ebc4c7dd224 516 ./Packages.xz
+ c35fd785a196e3ca6b26a6bf4c3ebf40e5b655fc 675 Packages
+ c35fd785a196e3ca6b26a6bf4c3ebf40e5b655fc 675 ./Packages
+ 03ae8560ff8391f319c82137e6e7e1f27d3d3de0 459 Packages.gz
+ 03ae8560ff8391f319c82137e6e7e1f27d3d3de0 459 ./Packages.gz
+ de50633344ffeb8fb200e186a3ffe639d96bad7f 501 Packages.bz2
+ de50633344ffeb8fb200e186a3ffe639d96bad7f 501 ./Packages.bz2
+ bcd103b23db1eb5768482ddbaecf92c150ff63cf 516 Packages.xz
+ bcd103b23db1eb5768482ddbaecf92c150ff63cf 516 ./Packages.xz
 SHA256:
- 39218ea0d246a694570719b3128d6d894d6040193602101a85db5f065e791aad 675 Packages
- 39218ea0d246a694570719b3128d6d894d6040193602101a85db5f065e791aad 675 ./Packages
- cbdf6b3cfa2ed02f5f1cf73e2676305fb6d613eaa80eed291e861fc163e77ac6 457 Packages.gz
- cbdf6b3cfa2ed02f5f1cf73e2676305fb6d613eaa80eed291e861fc163e77ac6 457 ./Packages.gz
- 620fe5e15df97fa0e4b1eeb3d309a9cca6c5e2c7b0abd24ddfc088066429f87a 500 Packages.bz2
- 620fe5e15df97fa0e4b1eeb3d309a9cca6c5e2c7b0abd24ddfc088066429f87a 500 ./Packages.bz2
- d767ab62bd51ff56a4db0e6f2500dfbbe066062648192d9bbac83b28eb5aab4a 516 Packages.xz
- d767ab62bd51ff56a4db0e6f2500dfbbe066062648192d9bbac83b28eb5aab4a 516 ./Packages.xz
+ cc41558ffa36bbeed9749783b804ccb99feaf00283760eddac14afa38e3eab8a 675 Packages
+ cc41558ffa36bbeed9749783b804ccb99feaf00283760eddac14afa38e3eab8a 675 ./Packages
+ 41c44cdb4c205f8e5f0a54e5ebaa8c6cce9e11a91bc91de52d69afe868b72804 459 Packages.gz
+ 41c44cdb4c205f8e5f0a54e5ebaa8c6cce9e11a91bc91de52d69afe868b72804 459 ./Packages.gz
+ f8720a8e7da2e246a7e2105a222edba4b7bf427f7d9568543d6e39c72d2830b5 501 Packages.bz2
+ f8720a8e7da2e246a7e2105a222edba4b7bf427f7d9568543d6e39c72d2830b5 501 ./Packages.bz2
+ dae48d05247a5b367a652da78eb80fcba729f1b3e0faed131a884ca77966423a 516 Packages.xz
+ dae48d05247a5b367a652da78eb80fcba729f1b3e0faed131a884ca77966423a 516 ./Packages.xz
