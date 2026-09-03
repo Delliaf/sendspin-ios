@@ -105,18 +105,23 @@ The build script will:
 
 ## 📲 Installation on iOS Devices
 
-### Method 1: DEB Package (Recommended for Jailbroken Devices)
-1. Transfer `Sendspin.deb` to the device via SFTP/SCP or OpenSSH.
-2. Install via terminal or Filza:
+### Method 1: Cydia / Sileo / Zebra Repository (Auto-Updates)
+Add the official repository to your package manager:
+* **Repository URL:** `https://delliaf.github.io/sendspin-ios/`
+* Open [https://delliaf.github.io/sendspin-ios/](https://delliaf.github.io/sendspin-ios/) on your iOS device to tap the **1-Click Add to Cydia / Sileo** button.
+
+### Method 2: DEB Package (Manual Install)
+1. Download `com.sendspin.player_1.0.0_iphoneos-arm.deb` from [Releases](https://github.com/Delliaf/sendspin-ios/releases/latest).
+2. Transfer to the device via SFTP/SCP or OpenSSH.
+3. Install via terminal or Filza:
    ```bash
-   dpkg -i Sendspin.deb
+   dpkg -i com.sendspin.player_1.0.0_iphoneos-arm.deb
    uicache
    ```
-3. The **Sendspin** icon will appear on the SpringBoard home screen.
 
-### Method 2: IPA Sideloading (AppSync / Sideloadly / AltStore / Filza)
-1. Transfer `Sendspin.ipa` to your PC or device.
-2. Install directly through **Filza File Manager** (if AppSync Unified is installed) or use **Sideloadly** / **AltStore**.
+### Method 3: IPA Sideloading (AppSync / Sideloadly / AltStore / Filza)
+1. Download `Sendspin-1.0.0.ipa` from [Releases](https://github.com/Delliaf/sendspin-ios/releases/latest).
+2. Install directly through **Filza File Manager** (with AppSync Unified) or use **Sideloadly** / **AltStore**.
 
 ---
 

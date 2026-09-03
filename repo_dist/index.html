@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sendspin iOS Cydia Repository</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card-bg: #181b22;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --gold: #dfba53;
+      --blue: #58a6ff;
+      --border: #30363d;
+      --btn-cydia: #9b51e0;
+      --btn-sileo: #0088cc;
+      --btn-zebra: #27ae60;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 580px;
+      width: 100%;
+    }
+    .header {
+      text-align: center;
+      padding: 24px 0 16px;
+    }
+    .header img {
+      width: 80px;
+      height: 80px;
+      border-radius: 18px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .header h1 {
+      margin: 12px 0 4px;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      color: var(--gold);
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      color: #fff;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-cydia { background-color: var(--btn-cydia); }
+    .btn-sileo { background-color: var(--btn-sileo); }
+    .btn-zebra { background-color: var(--btn-zebra); }
+    .btn-direct { background-color: #21262d; border: 1px solid var(--border); color: var(--blue); }
+    .url-box {
+      background: #090a0d;
+      border: 1px dashed var(--border);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--gold);
+      word-break: break-all;
+      margin-top: 10px;
+      user-select: all;
+    }
+    ul {
+      padding-left: 20px;
+      margin: 8px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 24px;
+    }
+    .footer a { color: var(--blue); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="CydiaIcon.png" alt="Sendspin iOS Icon">
+      <h1>Sendspin iOS Repository</h1>
+      <p>Universal Sendspin & Music Assistant Multi-room Audio Player (iOS 3.0 — 9.3+)</p>
+    </div>
+
+    <div class="card">
+      <h2>📲 Add to Package Managers</h2>
+      <p style="font-size: 14px; margin: 0 0 10px;">Tap below to add this repository directly to your jailbreak manager:</p>
+      <div class="btn-group">
+        <a class="btn btn-cydia" href="cydia://url/https://cydia.saurik.com/api/share#?source=https://delliaf.github.io/sendspin-ios/">Add to Cydia</a>
+        <a class="btn btn-sileo" href="sileo://source/https://delliaf.github.io/sendspin-ios/">Add to Sileo</a>
+        <a class="btn btn-zebra" href="zbra://sources/add/https://delliaf.github.io/sendspin-ios/">Add to Zebra</a>
+      </div>
+
+      <p style="font-size: 13px; color: var(--text-muted); margin: 14px 0 4px;">Or manually enter the repository URL:</p>
+      <div class="url-box">https://delliaf.github.io/sendspin-ios/</div>
+    </div>
+
+    <div class="card">
+      <h2>✨ Package Highlights</h2>
+      <ul>
+        <li><strong>Lock-Free Audio Engine:</strong> SPSC Ring Buffer with zero real-time audio thread locks or allocations.</li>
+        <li><strong>Multi-Format Decoding:</strong> Native FLAC, Opus, and uncompressed PCM streaming.</li>
+        <li><strong>Sub-Millisecond Clock Sync:</strong> Kalman-filtered hardware timebase synchronization.</li>
+        <li><strong>Universal iOS Compatibility:</strong> Optimized for iOS 9.3.6 (iPhone 4s) with full backwards compatibility to iOS 3.0.</li>
+        <li><strong>System Integration:</strong> Native lockscreen, Control Center, and AirPlay metadata.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>📦 Direct Downloads</h2>
+      <div class="btn-group">
+        <a class="btn btn-direct" href="https://github.com/Delliaf/sendspin-ios/releases/latest/download/Sendspin-1.0.0.ipa">Download IPA (Sideload / AppSync)</a>
+        <a class="btn btn-direct" href="https://github.com/Delliaf/sendspin-ios/releases/latest/download/com.sendspin.player_1.0.0_iphoneos-arm.deb">Download DEB (Cydia / Filza)</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>Maintained by <a href="https://github.com/Delliaf">Delliaf</a> · <a href="https://github.com/Delliaf/sendspin-ios">GitHub Source Code</a></p>
+    </div>
+  </div>
+</body>
+</html>
