@@ -145,6 +145,30 @@ echo "=== Packaging Application ==="
 cp $SRC_DIR/ios/Info.plist $BUILD_DIR/Payload/Sendspin.app/Info.plist
 cp $SRC_DIR/assets/icons/*.png $BUILD_DIR/Payload/Sendspin.app/
 
+mkdir -p $BUILD_DIR/Payload/Sendspin.app/_CodeSignature
+cat << "XML_EOF" > $BUILD_DIR/Payload/Sendspin.app/_CodeSignature/CodeResources
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>files</key>
+	<dict/>
+	<key>rules</key>
+	<dict>
+		<key>.*</key>
+		<true/>
+		<key>^.*\.lproj/</key>
+		<dict>
+			<key>optional</key>
+			<true/>
+			<key>weight</key>
+			<real>1000</real>
+		</dict>
+	</dict>
+</dict>
+</plist>
+XML_EOF
+
 echo "=== Code Signing with ldid ==="
 /usr/local/bin/ldid -S$SRC_DIR/ios/Entitlements.plist $BUILD_DIR/Payload/Sendspin.app/Sendspin
 
