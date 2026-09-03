@@ -151,15 +151,26 @@ chown -R root:wheel /Applications/Sendspin.app 2>/dev/null || true
 chmod 755 /Applications/Sendspin.app
 chmod 755 /Applications/Sendspin.app/Sendspin
 
+# 1. Update SpringBoard / LaunchServices application cache
 if which uicache >/dev/null 2>&1; then
-    uicache
+    uicache -p /Applications/Sendspin.app 2>/dev/null || uicache 2>/dev/null || true
 elif [ -x /usr/bin/uicache ]; then
-    /usr/bin/uicache
+    /usr/bin/uicache -p /Applications/Sendspin.app 2>/dev/null || /usr/bin/uicache 2>/dev/null || true
 fi
+
+# 2. Update as mobile user (owner of LaunchServices on iOS 8/9)
+if id -u mobile >/dev/null 2>&1; then
+    su mobile -c "uicache -p /Applications/Sendspin.app 2>/dev/null || uicache 2>/dev/null" 2>/dev/null || true
+fi
+
+# 3. Reload SpringBoard icon cache
+killall -HUP SpringBoard 2>/dev/null || true
 
 exit 0
 POSTINST_EOF
 chmod 755 $BUILD_DIR/deb/DEBIAN/postinst
+cp $BUILD_DIR/deb/DEBIAN/postinst $BUILD_DIR/deb/DEBIAN/extrainst_
+chmod 755 $BUILD_DIR/deb/DEBIAN/extrainst_
 
 cat << "POSTRM_EOF" > $BUILD_DIR/deb/DEBIAN/postrm
 #!/bin/sh
@@ -167,10 +178,14 @@ set -e
 
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     if which uicache >/dev/null 2>&1; then
-        uicache
+        uicache 2>/dev/null || true
     elif [ -x /usr/bin/uicache ]; then
-        /usr/bin/uicache
+        /usr/bin/uicache 2>/dev/null || true
     fi
+    if id -u mobile >/dev/null 2>&1; then
+        su mobile -c "uicache 2>/dev/null" 2>/dev/null || true
+    fi
+    killall -HUP SpringBoard 2>/dev/null || true
 fi
 
 exit 0
