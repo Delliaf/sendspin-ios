@@ -94,6 +94,8 @@ static NSString *GetLocalWiFiIPAddress() {
     SendspinBonjourBrowser *_bonjourBrowser;
     NSMutableArray<NSDictionary *> *_discoveredServersInternal;
     NSMutableSet<NSString *> *_promptedServers;
+    uint32_t _currentProgressMs;
+    uint32_t _currentDurationMs;
 }
 
 @property (nonatomic, assign, readwrite) SendspinConnectionState connectionState;
@@ -465,25 +467,58 @@ public:
         uint16_t track = md.track.value_or(0);
         uint32_t progress = md.progress ? md.progress->track_progress : 0;
         uint32_t duration = md.progress ? md.progress->track_duration : 0;
+        
+        NSString *artUrlStr = nil;
+        if (md.artwork_url && !md.artwork_url->empty()) {
+            artUrlStr = [NSString stringWithUTF8String:md.artwork_url->c_str()];
+        }
 
+        __weak SendspinBridge *b = bridge_;
         dispatch_async(dispatch_get_main_queue(), ^{
-            bridge_.currentTitle = title;
-            bridge_.currentArtist = artist;
-            bridge_.currentAlbum = album;
-            bridge_.currentTrackNum = track;
-            bridge_.currentProgressMs = progress;
-            bridge_.currentDurationMs = duration;
-            if ([bridge_.delegate respondsToSelector:@selector(sendspinMetadataUpdatedTitle:artist:album:genre:trackNum:durationMs:progressMs:)]) {
-                [bridge_.delegate sendspinMetadataUpdatedTitle:title 
-                                                        artist:artist 
-                                                         album:album 
-                                                         genre:bridge_.currentGenre 
-                                                      trackNum:track 
-                                                    durationMs:duration 
-                                                    progressMs:progress];
+            b.currentTitle = title;
+            b.currentArtist = artist;
+            b.currentAlbum = album;
+            b.currentTrackNum = track;
+            b.currentProgressMs = progress;
+            b.currentDurationMs = duration;
+            if ([b.delegate respondsToSelector:@selector(sendspinMetadataUpdatedTitle:artist:album:genre:trackNum:durationMs:progressMs:)]) {
+                [b.delegate sendspinMetadataUpdatedTitle:title 
+                                                  artist:artist 
+                                                   album:album 
+                                                   genre:b.currentGenre 
+                                                trackNum:track 
+                                              durationMs:duration 
+                                              progressMs:progress];
             }
-            [bridge_ updateSystemNowPlayingInfo];
+            [b updateSystemNowPlayingInfo];
         });
+
+        if (artUrlStr.length > 0) {
+            if ([artUrlStr hasPrefix:@"/"]) {
+                NSString *host = b.savedServerHost ?: @"192.168.1.152";
+                uint16_t port = b.savedServerPort > 0 ? b.savedServerPort : 8927;
+                artUrlStr = [NSString stringWithFormat:@"http://%@:%u%@", host, port, artUrlStr];
+            }
+            
+            NSURL *artUrl = [NSURL URLWithString:artUrlStr];
+            if (artUrl) {
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                    NSData *data = [NSData dataWithContentsOfURL:artUrl];
+                    if (data && data.length > 0) {
+                        UIImage *img = [UIImage imageWithData:data];
+                        if (img) {
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                b.currentArtwork = img;
+                                if ([b.delegate respondsToSelector:@selector(sendspinArtworkUpdated:)]) {
+                                    [b.delegate sendspinArtworkUpdated:img];
+                                }
+                                [b updateSystemNowPlayingInfo];
+                            });
+                        }
+                    }
+                });
+            }
+        }
     }
 
 private:
@@ -556,6 +591,28 @@ private:
     std::unique_ptr<AppControllerListener> _controllerListener;
     std::unique_ptr<AppMetadataListener> _metadataListener;
     std::unique_ptr<AppArtworkListener> _artworkListener;
+}
+
+- (uint32_t)currentProgressMs {
+    if (_metadataRole) {
+        return _metadataRole->get_track_progress_ms();
+    }
+    return _currentProgressMs;
+}
+
+- (uint32_t)currentDurationMs {
+    if (_metadataRole) {
+        return _metadataRole->get_track_duration_ms();
+    }
+    return _currentDurationMs;
+}
+
+- (void)setCurrentProgressMs:(uint32_t)val {
+    _currentProgressMs = val;
+}
+
+- (void)setCurrentDurationMs:(uint32_t)val {
+    _currentDurationMs = val;
 }
 
 + (instancetype)sharedInstance {

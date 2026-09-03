@@ -343,7 +343,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b114)";
+    versionBadge.text = @"Sendspin v1.0.1 (b115)";
     [self.view addSubview:versionBadge];
 }
 
@@ -526,18 +526,17 @@
 }
 
 - (void)onProgressTimerTick {
+    if (_isUserScrubbing) return;
+
     SendspinBridge *bridge = [SendspinBridge sharedInstance];
-    if (!_isUserScrubbing && bridge.currentDurationMs > 0) {
-        uint32_t progress = _baseProgressMs;
-        if (bridge.playbackState == SendspinPlaybackStatePlaying && _lastMetadataTimestamp > 0) {
-            NSTimeInterval delta = [NSDate timeIntervalSinceReferenceDate] - _lastMetadataTimestamp;
-            progress += static_cast<uint32_t>(delta * 1000.0);
-            if (progress > bridge.currentDurationMs) progress = bridge.currentDurationMs;
-        }
-        float val = (float)progress / (float)bridge.currentDurationMs;
+    uint32_t dur = bridge.currentDurationMs;
+    if (dur > 0) {
+        uint32_t progress = bridge.currentProgressMs;
+        if (progress > dur) progress = dur;
+        float val = (float)progress / (float)dur;
         [_progressSlider setValue:val animated:NO];
         _currentTimeLabel.text = [self formatTimeMs:progress];
-        _totalTimeLabel.text = [self formatTimeMs:bridge.currentDurationMs];
+        _totalTimeLabel.text = [self formatTimeMs:dur];
     }
 }
 
