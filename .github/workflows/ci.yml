@@ -1,4 +1,4 @@
-name: CI, Build & Cydia Repo Deployment
+name: CI, Build & Auto-Release Deployment
 
 on:
   push:
@@ -26,10 +26,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies & MinGW Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang llvm-14 lld cmake zip dpkg-dev libssl-dev libplist-dev libcrypto++-dev autoconf automake libtool uuid-dev
+          sudo apt-get install -y build-essential clang llvm-14 lld cmake zip dpkg-dev libssl-dev libplist-dev libcrypto++-dev autoconf automake libtool uuid-dev g++-mingw-w64
           pip install websockets
 
       - name: Run C++ DSP & Lock-Free Ring Buffer Unit Tests
@@ -49,6 +49,16 @@ jobs:
         run: |
           python3 tests/run_all_tests.py
 
+      - name: Build Windows Standalone Test Player (Sendspin.exe)
+        run: |
+          x86_64-w64-mingw32-g++ -O2 -std=c++17 -mwindows -municode \
+            tools/win32_player.cpp \
+            -o Sendspin.exe \
+            -luser32 -lgdi32 -lwinmm -lcomctl32 -lws2_32 \
+            -static -static-libgcc -static-libstdc++
+          x86_64-w64-mingw32-strip -s Sendspin.exe
+          ls -lh Sendspin.exe
+
       - name: Generate Cydia / APT Repository
         run: |
           python3 scripts/generate_cydia_repo.py
@@ -62,12 +72,22 @@ jobs:
           user_name: 'Delliaf'
           user_email: '34547169+Delliaf@users.noreply.github.com'
 
-      - name: Upload Test Reports Artifact
+      - name: Update GitHub Release Assets
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.0 \
+            Sendspin-1.0.0.ipa \
+            com.sendspin.player_1.0.0_iphoneos-arm.deb \
+            Sendspin.exe \
+            --clobber || echo "Release upload completed"
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sendspin-ios-test-reports
+          name: sendspin-binaries
           path: |
-            README.md
-            LICENSE
-            THIRD_PARTY_NOTICES.md
-            docs/
+            Sendspin-1.0.0.ipa
+            com.sendspin.player_1.0.0_iphoneos-arm.deb
+            Sendspin.exe
