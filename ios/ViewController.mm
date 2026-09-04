@@ -309,7 +309,7 @@
     versionBadge.font = [UIFont systemFontOfSize:8];
     versionBadge.textColor = [UIColor colorWithWhite:0.4 alpha:0.8];
     versionBadge.textAlignment = NSTextAlignmentRight;
-    versionBadge.text = @"Sendspin v1.0.1 (b123)";
+    versionBadge.text = @"Sendspin v1.0.1 (b124)";
     [self.view addSubview:versionBadge];
 }
 

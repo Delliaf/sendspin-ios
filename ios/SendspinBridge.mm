@@ -15,6 +15,7 @@
 #include "sendspin/controller_role.h"
 #include "sendspin/metadata_role.h"
 #include "sendspin/artwork_role.h"
+#include "protocol_messages.h"
 #include <thread>
 #include <memory>
 #include <string>
@@ -351,10 +352,23 @@ public:
 
     void on_time_sync_updated(float error) override {
         (void)error;
+        __weak SendspinBridge *b = bridge_;
         dispatch_async(dispatch_get_main_queue(), ^{
-            bridge_.connectionState = SendspinConnectionStateSynchronized;
-            if ([bridge_.delegate respondsToSelector:@selector(sendspinConnectionStateChanged:message:)]) {
-                [bridge_.delegate sendspinConnectionStateChanged:SendspinConnectionStateSynchronized message:@"Synchronized"];
+            SendspinBridge *strongB = b;
+            if (strongB && strongB.connectionState != SendspinConnectionStateSynchronized) {
+                strongB.connectionState = SendspinConnectionStateSynchronized;
+                if ([strongB.delegate respondsToSelector:@selector(sendspinConnectionStateChanged:message:)]) {
+                    [strongB.delegate sendspinConnectionStateChanged:SendspinConnectionStateSynchronized message:@"Synchronized"];
+                }
+                
+                // Force server to send stream/start if we joined a session that is already playing
+                if (strongB->_client) {
+                    sendspin::StreamRequestFormatMessage msg;
+                    sendspin::ServerPlayerStreamObject player;
+                    player.codec = sendspin::SendspinCodecFormat::FLAC;
+                    msg.player = player;
+                    strongB->_client->send_text(sendspin::format_stream_request_format_message(&msg));
+                }
             }
         });
     }
@@ -473,6 +487,12 @@ public:
         uint32_t duration = md.progress ? md.progress->track_duration : 0;
         uint32_t speed = md.progress ? md.progress->playback_speed : 0;
         
+        // Auto-detect if the server sent seconds instead of milliseconds (Music Assistant python bug workaround)
+        if (duration > 0 && duration < 10000) {
+            progress *= 1000;
+            duration *= 1000;
+        }
+        
         NSString *artUrlStr = nil;
         if (md.artwork_url && !md.artwork_url->empty()) {
             artUrlStr = [NSString stringWithUTF8String:md.artwork_url->c_str()];
@@ -488,6 +508,8 @@ public:
             b.currentTrackNum = track;
             b.currentDurationMs = duration;
             
+            NSLog(@"[SendspinBridge] on_metadata: title='%@', duration=%u, progress=%u, speed=%u, trackChanged=%d", title, duration, progress, speed, trackChanged);
+
             SendspinBridge *strongB = b;
             if (strongB) {
                 // Ignore server play/pause state if the user just toggled it locally < 2.0s ago (prevent delayed server echo)
@@ -631,6 +653,7 @@ private:
     } else {
         _progressAnchorTime = 0;
     }
+    NSLog(@"[SendspinBridge] Anchor updated: progress=%u, state=%d", progressMs, (int)self.playbackState);
 }
 
 - (uint32_t)currentProgressMs {
@@ -1004,6 +1027,7 @@ private:
 #pragma mark - Transport Commands
 
 - (void)togglePlayPause {
+    NSLog(@"[SendspinBridge] togglePlayPause called. Current state: %d", (int)self.playbackState);
     if (self.playbackState == SendspinPlaybackStatePlaying) {
         [self pause];
     } else {
