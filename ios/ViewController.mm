@@ -84,40 +84,6 @@
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    
-    // Enable remote control events for iOS 4.0 - 7.0 lockscreen / home double-tap bar
-    if ([[UIApplication sharedApplication] respondsToSelector:@selector(beginReceivingRemoteControlEvents)]) {
-        [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
-    }
-    [self becomeFirstResponder];
-}
-
-- (BOOL)canBecomeFirstResponder {
-    return YES;
-}
-
-- (void)remoteControlReceivedWithEvent:(UIEvent *)event {
-    if (event.type == UIEventTypeRemoteControl) {
-        switch (event.subtype) {
-            case UIEventSubtypeRemoteControlPlay:
-                [[SendspinBridge sharedInstance] play];
-                break;
-            case UIEventSubtypeRemoteControlPause:
-                [[SendspinBridge sharedInstance] pause];
-                break;
-            case UIEventSubtypeRemoteControlTogglePlayPause:
-                [[SendspinBridge sharedInstance] togglePlayPause];
-                break;
-            case UIEventSubtypeRemoteControlNextTrack:
-                [[SendspinBridge sharedInstance] nextTrack];
-                break;
-            case UIEventSubtypeRemoteControlPreviousTrack:
-                [[SendspinBridge sharedInstance] previousTrack];
-                break;
-            default:
-                break;
-        }
-    }
 }
 
 - (void)dealloc {

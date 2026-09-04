@@ -98,11 +98,6 @@
             }];
         }
     }
-
-    // 2. Legacy iOS 4.0 - 7.0 remote control events registration
-    if ([[UIApplication sharedApplication] respondsToSelector:@selector(beginReceivingRemoteControlEvents)]) {
-        [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
-    }
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application {

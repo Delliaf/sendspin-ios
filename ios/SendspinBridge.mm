@@ -479,13 +479,21 @@ public:
         SendspinPlaybackState newState = (speed > 0) ? SendspinPlaybackStatePlaying : SendspinPlaybackStatePaused;
         __weak SendspinBridge *b = bridge_;
         dispatch_async(dispatch_get_main_queue(), ^{
+            BOOL trackChanged = ![b.currentTitle isEqualToString:title] || b.currentTrackNum != track;
             b.currentTitle = title;
             b.currentArtist = artist;
             b.currentAlbum = album;
             b.currentTrackNum = track;
             b.currentDurationMs = duration;
             b.playbackState = newState;
-            [b updateProgressAnchor:progress];
+            
+            // Soft-sync progress: only snap if the track changed or difference is > 2000ms (seek or drift)
+            uint32_t localProg = [b currentProgressMs];
+            int32_t diff = abs((int32_t)progress - (int32_t)localProg);
+            if (trackChanged || diff > 2000 || duration == 0) {
+                [b updateProgressAnchor:progress];
+            }
+
             if ([b.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
                 [b.delegate sendspinPlaybackStateChanged:newState];
             }
