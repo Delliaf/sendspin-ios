@@ -1144,7 +1144,9 @@ private:
     }
 
     if (NSClassFromString(@"MPNowPlayingInfoCenter")) {
-        [[MPNowPlayingInfoCenter defaultCenter] setNowPlayingInfo:info];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[MPNowPlayingInfoCenter defaultCenter] setNowPlayingInfo:info];
+        });
     }
 }
 
