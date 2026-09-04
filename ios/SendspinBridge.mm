@@ -98,6 +98,7 @@ static NSString *GetLocalWiFiIPAddress() {
     uint32_t _currentDurationMs;
     NSTimeInterval _progressAnchorTime;
     NSTimeInterval _lastUserSeekTime;
+    NSTimeInterval _lastUserPlayPauseTime;
 }
 
 @property (nonatomic, assign, readwrite) SendspinConnectionState connectionState;
@@ -486,12 +487,17 @@ public:
             b.currentAlbum = album;
             b.currentTrackNum = track;
             b.currentDurationMs = duration;
-            b.playbackState = newState;
             
-            // Soft-sync progress: only snap if the track changed or difference is > 2000ms (seek or drift)
-            // Ignore server progress if the user just scrubbed locally < 2.0s ago (prevent delayed server echo snap-back)
             SendspinBridge *strongB = b;
             if (strongB) {
+                // Ignore server play/pause state if the user just toggled it locally < 2.0s ago (prevent delayed server echo)
+                NSTimeInterval timeSincePlayPause = [NSDate timeIntervalSinceReferenceDate] - strongB->_lastUserPlayPauseTime;
+                if (timeSincePlayPause > 2.0) {
+                    strongB.playbackState = newState;
+                }
+                
+                // Soft-sync progress: only snap if the track changed or difference is > 2000ms (seek or drift)
+                // Ignore server progress if the user just scrubbed locally < 2.0s ago (prevent delayed server echo snap-back)
                 NSTimeInterval timeSinceSeek = [NSDate timeIntervalSinceReferenceDate] - strongB->_lastUserSeekTime;
                 if (timeSinceSeek > 2.0) {
                     uint32_t localProg = [strongB currentProgressMs];
@@ -503,7 +509,7 @@ public:
             }
 
             if ([b.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
-                [b.delegate sendspinPlaybackStateChanged:newState];
+                [b.delegate sendspinPlaybackStateChanged:b.playbackState];
             }
             if ([b.delegate respondsToSelector:@selector(sendspinMetadataUpdatedTitle:artist:album:genre:trackNum:durationMs:progressMs:)]) {
                 [b.delegate sendspinMetadataUpdatedTitle:title 
@@ -1006,6 +1012,7 @@ private:
 }
 
 - (void)play {
+    _lastUserPlayPauseTime = [NSDate timeIntervalSinceReferenceDate];
     self.playbackState = SendspinPlaybackStatePlaying;
     _progressAnchorTime = [NSDate timeIntervalSinceReferenceDate];
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1033,6 +1040,7 @@ private:
 }
 
 - (void)pause {
+    _lastUserPlayPauseTime = [NSDate timeIntervalSinceReferenceDate];
     uint32_t currentPos = [self currentProgressMs];
     self.playbackState = SendspinPlaybackStatePaused;
     [self updateProgressAnchor:currentPos];
