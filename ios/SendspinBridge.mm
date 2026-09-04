@@ -97,6 +97,7 @@ static NSString *GetLocalWiFiIPAddress() {
     uint32_t _currentProgressMs;
     uint32_t _currentDurationMs;
     NSTimeInterval _progressAnchorTime;
+    NSTimeInterval _lastUserSeekTime;
 }
 
 @property (nonatomic, assign, readwrite) SendspinConnectionState connectionState;
@@ -488,10 +489,17 @@ public:
             b.playbackState = newState;
             
             // Soft-sync progress: only snap if the track changed or difference is > 2000ms (seek or drift)
-            uint32_t localProg = [b currentProgressMs];
-            int32_t diff = abs((int32_t)progress - (int32_t)localProg);
-            if (trackChanged || diff > 2000 || duration == 0) {
-                [b updateProgressAnchor:progress];
+            // Ignore server progress if the user just scrubbed locally < 2.0s ago (prevent delayed server echo snap-back)
+            SendspinBridge *strongB = b;
+            if (strongB) {
+                NSTimeInterval timeSinceSeek = [NSDate timeIntervalSinceReferenceDate] - strongB->_lastUserSeekTime;
+                if (timeSinceSeek > 2.0) {
+                    uint32_t localProg = [strongB currentProgressMs];
+                    int32_t diff = abs((int32_t)progress - (int32_t)localProg);
+                    if (trackChanged || diff > 2000 || duration == 0) {
+                        [strongB updateProgressAnchor:progress];
+                    }
+                }
             }
 
             if ([b.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
@@ -1004,6 +1012,7 @@ private:
         if ([self.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
             [self.delegate sendspinPlaybackStateChanged:SendspinPlaybackStatePlaying];
         }
+        [self updateSystemNowPlayingInfo];
     });
 
     if (self.connectionState != SendspinConnectionStateConnected && self.connectionState != SendspinConnectionStateSynchronized) {
@@ -1033,6 +1042,7 @@ private:
         if ([self.delegate respondsToSelector:@selector(sendspinPlaybackStateChanged:)]) {
             [self.delegate sendspinPlaybackStateChanged:SendspinPlaybackStatePaused];
         }
+        [self updateSystemNowPlayingInfo];
     });
     
     if (_controllerRole) {
@@ -1066,10 +1076,14 @@ private:
 }
 
 - (void)seekToMs:(uint32_t)positionMs {
+    _lastUserSeekTime = [NSDate timeIntervalSinceReferenceDate];
     [self updateProgressAnchor:positionMs];
     if (_controllerRole) {
         _controllerRole->send_command({.command = sendspin::SendspinControllerCommand::SEEK, .position_ms = positionMs});
     }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self updateSystemNowPlayingInfo];
+    });
 }
 
 - (void)adjustSyncDelayMs:(int16_t)deltaMs {
